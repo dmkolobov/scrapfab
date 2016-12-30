@@ -10,7 +10,8 @@
                  [reagent "0.6.0-rc"]
                  [re-frame "0.8.0"]
                  [stasis "2.3.0"]
-                 [ring "1.5.0"]]
+                 [ring "1.5.0"]
+                 [hiccup "1.0.5"]]
   :plugins [[lein-ring "0.10.0"]
             [lein-cljsbuild "1.1.3" :exclusions [[org.clojure/clojure]]]]
 

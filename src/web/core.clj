@@ -3,7 +3,8 @@
             [clojure.set :refer [rename-keys]]
             [clojure.pprint :refer [pprint]]
             [clojure.java.io :as io]
-            [clojure.string]))
+            [clojure.string]
+            [hiccup.core :as hiccup]))
 
 (defn slurp-reagent!
   "Slurp the compiled reagent app and return a map of pages for the javascript
@@ -38,25 +39,18 @@
          (let [path (.getPath coll-dir)
                name (basename coll-dir "")]
            (slurp-collection! name path)))
-       (let [fs (.listFiles (io/file "resources/public/data"))]
-         (println fs)
-         fs)))
+       (.listFiles (io/file "resources/public/data"))))
 
 (def pages
   (merge {"/"
-          (str "<html>
-              <head>
-                <script type=\"text/javascript\" src=\"/js/compiled/web.js\"></script>
-              </head>
-              <body>
-
-              <pre>"
-               (with-out-str
-                 (pprint
-                   (slurp-data!)))
-               "</pre>
-              </body>
-            </html>")}
+          (hiccup/html
+            [:html
+             [:script {:type "text/javascript"
+                       :src  "/js/compiled/web.js"}]
+             [:body
+              [:h1 "Data"]
+              [:pre
+               (with-out-str (pprint (slurp-data!)))]]])}
 
          (slurp-reagent!)))
 
