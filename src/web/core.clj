@@ -6,9 +6,14 @@
             [clojure.string]
             [hiccup.core :as hiccup]))
 
-(defn slurp-reagent!
-  "Slurp the compiled reagent app and return a map of pages for the javascript
-  assets."
+(defn slurp-css!
+  []
+  (let [css (stasis/slurp-directory "resources/public/css" #"\.css$")]
+    (rename-keys css
+                 (zipmap (keys css)
+                         (map #(str "/css" %) (keys css))))))
+
+(defn slurp-js!
   []
   (let [js (stasis/slurp-directory "resources/public/js/compiled/" #"\.js$")]
     (rename-keys js
@@ -45,14 +50,27 @@
   (merge {"/"
           (hiccup/html
             [:html
-             [:script {:type "text/javascript"
-                       :src  "/js/compiled/web.js"}]
+             [:head
+              [:link {:rel         "stylesheet"
+                      :href        "https://unpkg.com/purecss@0.6.1/build/pure-min.css"
+                      :integrity   "sha384-CCTZv2q9I9m3UOxRLaJneXrrqKwUNOzZ6NGEUMwHtShDJ+nCoiXJCAgi05KfkLGY"
+                      :crossorigin "anonymous"}]
+
+              [:link {:rel  "stylesheet"
+                      :href "css/main.css"}]
+
+              [:link {:rel  "stylesheet"
+                      :href "css/fonts.css"}]
+
+              [:script {:type "text/javascript"
+                        :src  "/js/compiled/web.js"}]]
              [:body
               [:h1 "Data"]
               [:pre
                (with-out-str (pprint (slurp-data!)))]]])}
 
-         (slurp-reagent!)))
+         (slurp-css!)
+         (slurp-js!)))
 
 (doall
   (map println (keys pages)))

@@ -1,0 +1,127 @@
+.pure-form input[type="text"],
+.pure-form textarea {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+html,
+body,
+p,
+h1,h2,h3,h4,h5,h6,
+.pure-g [class*=pure-u] {
+    font-family: "Raleway";
+    font-weight: 400;
+    color: #333;
+}
+
+h1 {
+  margin: 0;
+  font-family: "Muncie";
+  font-size: 4em;
+}
+
+.pure-img {
+  display: block;
+}
+
+.main-footer {
+  padding: 0 1em;
+}
+
+.main-header {
+}
+
+.main-nav {
+  position: relative;
+}
+
+.main-menu {
+  width:      100%;
+  position:   absolute;
+  bottom:     calc(50% - 1em);
+  text-align: center;
+}
+
+.main-footer {
+  background: #5f6573;
+}
+
+.callout {
+  text-align: center;
+  font-size: 2em;
+  color: #fff;
+  padding: 1em 1em 1em 0;
+}
+
+.callout-fields {
+  padding-bottom: 1em;
+  text-align: center;
+}
+
+.callout-form input[type="text"],
+.callout-form textarea {
+    width: 100%;
+    background: #444b5d;
+}
+
+.callout-form input[type="text"]{
+  margin-bottom: 0.5em;
+}
+
+.main-heading {
+  padding: 0;
+}
+
+.panel {
+  text-align: right;
+  font-size: 1.1rem;
+  padding: 1em;
+}
+
+.panel p {
+  line-height: 2em;
+}
+
+.panel-heading {
+  font-size: 6rem;
+}
+
+.main-logo {
+  display: none;
+  width: 100%;
+}
+
+.main-logo-text {
+  text-align:  right;
+  font-family: "Muncie";
+  font-size:   6rem;
+  line-height: 1em;
+}
+
+.scrap, .fab {
+  padding: 1.5rem 1rem 0 1rem;
+  display: block;
+  color: #fff;
+}
+
+.scrap { background: #ee5e4f; }
+.fab { background: #444b5d; }
+
+@media (max-width: 800px) {
+  .main-logo {
+    display: none;
+  }
+
+  .main-logo-text {
+    display: block;
+  }
+
+  .main-header {
+    padding: 0;
+  }
+
+  .panel {
+    padding: 1em;
+  }
+}
