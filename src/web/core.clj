@@ -4,7 +4,9 @@
             [clojure.pprint :refer [pprint]]
             [clojure.java.io :as io]
             [clojure.string]
-            [hiccup.core :as hiccup]))
+            [hiccup.core :as hiccup]
+
+            [web.render :refer [register-layout register-template render]]))
 
 (defn slurp-css!
   []
@@ -46,31 +48,35 @@
            (slurp-collection! name path)))
        (.listFiles (io/file "resources/public/data"))))
 
-(defn base-template
-  [& {:keys [scripts stylesheets body]}]
-  [:html
-   [:head
-    (for [js scripts]
-      [:script {:type "text/javascript"
-                :src  js}])
-    (for [css stylesheets]
-      [:link   {:rel  "stylesheet"
-                :href css}])]
-   [:body body]])
+(register-layout   :base
+                   (fn base-template
+                     [& {:keys [scripts stylesheets body message]}]
+                     [:html
+                      [:head
+                       (for [js scripts]      [:script {:type "text/javascript" :src js}])
+                       (for [css stylesheets] [:link {:rel "stylesheet" :href css}])]
+                      [:body
+                       body
+                       [:pre (str message)]]]))
+
+(register-template :main
+                   (fn main-view
+                     [& _]
+                     [:h1 "HELLO, WORLD!"]))
+
+(def resources
+  {:scripts     ["/js/compiled/web.js"]
+
+   :stylesheets ["https://unpkg.com/purecss@0.6.1/build/pure-min.css"
+                 "css/main.css"
+                 "css/fonts.css"]})
 
 (def pages
-  (merge {"/"
-          (hiccup/html
-            (base-template :scripts     ["/js/compiled/web.js"]
-
-                           :stylesheets ["https://unpkg.com/purecss@0.6.1/build/pure-min.css"
-                                         "css/main.css"
-                                         "css/fonts.css"]
-
-                           :body        [:div
-                                         [:h1 "Data"]
-                                         [:pre
-                                          (with-out-str (pprint (slurp-data!)))]]))}
+  (merge {"/" (hiccup/html
+                (render :layout   :base
+                        :template :main
+                        :data     (merge resources
+                                         {:message "foobar"})))}
 
          (slurp-css!)
          (slurp-js!)))
