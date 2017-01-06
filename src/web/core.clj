@@ -46,28 +46,31 @@
            (slurp-collection! name path)))
        (.listFiles (io/file "resources/public/data"))))
 
+(defn base-template
+  [& {:keys [scripts stylesheets body]}]
+  [:html
+   [:head
+    (for [js scripts]
+      [:script {:type "text/javascript"
+                :src  js}])
+    (for [css stylesheets]
+      [:link   {:rel  "stylesheet"
+                :href css}])]
+   [:body body]])
+
 (def pages
   (merge {"/"
           (hiccup/html
-            [:html
-             [:head
-              [:link {:rel         "stylesheet"
-                      :href        "https://unpkg.com/purecss@0.6.1/build/pure-min.css"
-                      :integrity   "sha384-CCTZv2q9I9m3UOxRLaJneXrrqKwUNOzZ6NGEUMwHtShDJ+nCoiXJCAgi05KfkLGY"
-                      :crossorigin "anonymous"}]
+            (base-template :scripts     ["/js/compiled/web.js"]
 
-              [:link {:rel  "stylesheet"
-                      :href "css/main.css"}]
+                           :stylesheets ["https://unpkg.com/purecss@0.6.1/build/pure-min.css"
+                                         "css/main.css"
+                                         "css/fonts.css"]
 
-              [:link {:rel  "stylesheet"
-                      :href "css/fonts.css"}]
-
-              [:script {:type "text/javascript"
-                        :src  "/js/compiled/web.js"}]]
-             [:body
-              [:h1 "Data"]
-              [:pre
-               (with-out-str (pprint (slurp-data!)))]]])}
+                           :body        [:div
+                                         [:h1 "Data"]
+                                         [:pre
+                                          (with-out-str (pprint (slurp-data!)))]]))}
 
          (slurp-css!)
          (slurp-js!)))
