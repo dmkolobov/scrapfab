@@ -6,7 +6,7 @@
             [clojure.string]
             [hiccup.core :as hiccup]
 
-            [web.render :refer [register-layout render-page]]))
+            [web.scrapfab :as scrapfab]))
 
 (defn slurp-css!
   []
@@ -22,78 +22,42 @@
                  (zipmap (keys js)
                          (map #(str "/js/compiled" %) (keys js))))))
 
-(defn scrapfab-menu
-  [current-url]
-  [:div.pure-menu.pure-menu-horizontal
-   [:ul.pure-menu-list
-    [:li.pure-menu-item [:a.pure-menu-link {:href "/"}      "Home"]]
-    [:li.pure-menu-item [:a.pure-menu-link {:href "/about"} "About"]]
-    [:li.pure-menu-item.pure-menu-has-children.pure-menu-allow-hover
-     [:a.pure-menu-link {:href "/fab"} "Fabrication"]
-     [:ul.pure-menu-children
-      [:li.pure-menu-item [:a.pure-menu-link {:href "/fab/art"}         "Fine Art"]]
-      [:li.pure-menu-item [:a.pure-menu-link {:href "/fab/residential"} "Residential"]]
-      [:li.pure-menu-item [:a.pure-menu-link {:href "/fab/commercial"}  "Commercial"]]]]]])
+(defn with-doctype
+  "Prepends the HTML5 doctype tag to the given HTML."
+  [html]
+  (str "<!DOCTYPE html>" html))
 
-(register-layout :scrapfab-base
-                 (fn scrapfab-base
-                   [& {:keys [title content current-url js css]}]
-                   [:html
-                    [:head
-                     [:title title]]
-                    [:body
-                     [:div.pure-g
-                      [:div.pure-u-1-3 [:div.scrap-logo "scrap"]]
-                      [:div.pure-u-2-3 [:div.fab-logo   "fab"]]
-                      [:div.pure-u-1-3]
-                      [:div.pure-u-2-3 (scrapfab-menu current-url)]]
+(defn render-page
+  [theme [url {:keys [layout] :as data}]]
+  (let [data'  (assoc data
+                 :url url
+                 :js  (:js theme)
+                 :css (:css theme))
 
-                      content
+        render (fn render-fn
+                 ([id]
+                  (render-fn id data'))
+                 ([id args]
+                  (let [layout-fn (get-in theme [:layouts id])]
+                    (layout-fn render-fn args))))]
+    [url (render layout)]))
 
-                     (for [js-url js]
-                       [:script {:type "text/javascript" :src  js-url}])
-                     (for [css-url css]
-                       [:link {:rel "stylesheet" :href css-url}])]]))
+(defn wrap-page
+  [[url hiccup]]
+  [url (with-doctype (hiccup/html hiccup))])
 
-(def resources
-  {:js     ["/js/compiled/web.js"]
-
-   :css ["https://unpkg.com/purecss@0.6.1/build/pure-min.css"
-                 "https://unpkg.com/purecss@0.6.1/build/grids-min.css"
-                 "https://unpkg.com/purecss@0.6.1/build/grids-responsive-min.css"
-                 "/css/main.css"
-                 "/css/fonts.css"]})
-
-(defn- render
-  [page]
-  (render-page (merge resources page)))
+  (defn render-site
+    [theme site]
+    (merge
+      (into {}
+            (map (comp wrap-page
+                       (partial render-page theme))
+                 site))
+      (slurp-css!)
+      (slurp-js!)))
 
 (def pages
-  (merge {"/"                           (render
-                                          {:layout  :scrapfab-base
-                                           :title   "root"
-                                           :content [:h1 "Hello, World!"]})
-
-          "/fab/art/index.html"         (render
-                                          {:layout  :scrapfab-base
-                                           :title   "SCRAPFAB fabrication > fine arts"
-                                           :content [:h1 "Fine Art"]})
-
-          "/fab/residential/index.html" (render
-                                          {:layout  :scrapfab-base
-                                           :title   "SCRAPFAB fabrication > residential"
-                                           :content [:h1 "Residential"]})
-
-          "/fab/commercial/index.html"  (render
-                                          {:layout  :scrapfab-base
-                                           :title   "SCRAPFAB fabrication > commercial"
-                                           :content [:h1 "Commercial"]})}
-
-         (slurp-css!)
-         (slurp-js!)))
-
-(doall
-  (map println (keys pages)))
+  (render-site scrapfab/theme scrapfab/site))
 
 (def app (stasis/serve-pages pages))
 ;;
