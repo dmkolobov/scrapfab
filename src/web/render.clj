@@ -1,20 +1,20 @@
-(ns web.render)
+(ns web.render
+  (:require [hiccup.core :as hiccup]))
 
-(def registry (atom {:layouts   {}
-                     :templates {}}))
+(def layouts (atom {}))
 
 (defn register-layout
   [id f]
-  (swap! registry assoc-in [:layouts id] f))
+  (swap! layouts assoc id f))
 
-(defn register-template
-  [id f]
-  (swap! registry assoc-in [:templates id] f))
+(defn- with-doctype
+  "Prepends HTML5 doctype to the given html."
+  [html]
+  (str "<!DOCTYPE html>" html))
 
-(defn render
-  [& {:keys [layout template data]
-      :or   {data {}}}]
-  (let [reg      @registry
-        layout   (get-in reg [:layouts layout])
-        template (get-in reg [:templates template])]
-    (apply layout (mapcat identity (assoc data :body (template data))))))
+(defn render-page
+  [data]
+  (let [layout-fn (get @layouts (:layout data))]
+    (with-doctype
+      (hiccup/html
+        (apply layout-fn (mapcat identity data))))))
