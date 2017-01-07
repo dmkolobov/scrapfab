@@ -24,7 +24,7 @@
                 :source-paths ["src-cljs"]
 
                 :compiler {:main       web.core
-                           :asset-path "js/compiled/out"
+                           :asset-path "/js/compiled/out"
                            :output-to  "resources/public/js/compiled/web.js"
                            :output-dir "resources/public/js/compiled/out"
                            :source-map-timestamp true}}]}

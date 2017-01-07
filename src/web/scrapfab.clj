@@ -1,62 +1,52 @@
-(ns web.scrapfab)
+(ns web.scrapfab
+  (:require [clojure.pprint :refer [pprint]]
+            [web.ui :refer [main-layout main-nav]]))
 
-(defn main-layout
-  [render {:keys [title content url js css]}]
-  [:html
-   [:head
-    [:title title]]
-   [:body
-    [:div.pure-g
-     [:div.pure-u-1-3 [:div.scrap-logo "scrap"]]
-     [:div.pure-u-2-3 [:div.fab-logo   "fab"]]
-     [:div.pure-u-1-3]
-     [:div.pure-u-2-3 (render :main-nav)]]
-
-    content
-
-    (for [js-url js]
-      [:script {:type "text/javascript" :src  js-url}])
-    (for [css-url css]
-      [:link {:rel "stylesheet" :href css-url}])]])
-
-(defn main-nav
-  [render {:keys [url]}]
-  [:div.pure-menu.pure-menu-horizontal
-   [:ul.pure-menu-list
-    [:li.pure-menu-item [:a.pure-menu-link {:href "/"}      "Home"]]
-    [:li.pure-menu-item [:a.pure-menu-link {:href "/about"} "About"]]
-    [:li.pure-menu-item.pure-menu-has-children.pure-menu-allow-hover
-     [:a.pure-menu-link {:href "/fab"} "Fabrication"]
-     [:ul.pure-menu-children
-      [:li.pure-menu-item [:a.pure-menu-link {:href "/fab/art"}         "Fine Art"]]
-      [:li.pure-menu-item [:a.pure-menu-link {:href "/fab/residential"} "Residential"]]
-      [:li.pure-menu-item [:a.pure-menu-link {:href "/fab/commercial"}  "Commercial"]]]]]])
+(defn debug-view
+  [render context]
+  (render :main-layout
+          (assoc context
+            :content [:div
+                       [:h1 "Data"]
+                       [:pre
+                        {:data-lang "clojure"}
+                        (with-out-str (pprint context))]])))
 
 (def theme
-  {:js  ["/js/compiled/web.js"]
+  {:js  ["https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.22.0/codemirror.js"
+         "https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.22.0/mode/clojure/clojure.js"
+         "https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.22.0/addon/runmode/runmode.js"
+         "https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.22.0/addon/runmode/colorize.js"
+
+         "/js/compiled/web.js"]
 
    :css ["https://unpkg.com/purecss@0.6.1/build/pure-min.css"
          "https://unpkg.com/purecss@0.6.1/build/grids-min.css"
          "https://unpkg.com/purecss@0.6.1/build/grids-responsive-min.css"
+
+         "https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.22.0/codemirror.min.css"
+         "https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.22.0/theme/base16-dark.css"
+
          "/css/main.css"
          "/css/fonts.css"]
 
-   :layouts {:main-layout main-layout
+   :layouts {:debug-view  debug-view
+             :main-layout main-layout
              :main-nav    main-nav}})
 
 (def site
-  {"/"                           {:layout  :main-layout
-                                  :title   "root"
-                                  :content [:h1 "Hello, World!!!!!!!! 6!!66"]}
+  {"/"                           {:layout :debug-view
+                                  :title  "Welcome"
+                                  :md     "# SCRAPFAB"}
 
-   "/fab/art/index.html"         {:layout  :main-layout
-                                  :title   "SCRAPFAB fabrication > fine arts"
-                                  :content [:h1 "Fine Art"]}
+   "/fab/art/index.html"         {:layout :debug-view
+                                  :title  "SCRAPFAB fabrication > fine arts"
+                                  :md     "# fine arts"}
 
-   "/fab/residential/index.html" {:layout  :main-layout
-                                  :title   "SCRAPFAB fabrication > residential"
-                                  :content [:h1 "Residential"]}
+   "/fab/residential/index.html" {:layout :debug-view
+                                  :title  "SCRAPFAB fabrication > residential"
+                                  :md     "# residential"}
 
-   "/fab/commercial/index.html"  {:layout  :main-layout
-                                  :title   "SCRAPFAB fabrication > commercial"
-                                  :content [:h1 "Commercial"]}})
+   "/fab/commercial/index.html"  {:layout :debug-view
+                                  :title  "SCRAPFAB fabrication > commercial"
+                                  :md     "# commercial"}})

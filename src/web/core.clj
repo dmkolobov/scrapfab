@@ -27,19 +27,22 @@
   [html]
   (str "<!DOCTYPE html>" html))
 
-(defn render-page
-  [theme [url {:keys [layout] :as data}]]
-  (let [data'  (assoc data
-                 :url url
-                 :js  (:js theme)
-                 :css (:css theme))
+(defn mk-render-fn
+  [url theme context]
+  (let [context (assoc context
+                  :url url
+                  :js  (:js theme)
+                  :css (:css theme))]
+    (fn render-fn
+      ([id]
+       (render-fn id context))
+      ([id new-context]
+       (let [layout-fn (get-in theme [:layouts id])]
+         (layout-fn render-fn new-context))))))
 
-        render (fn render-fn
-                 ([id]
-                  (render-fn id data'))
-                 ([id args]
-                  (let [layout-fn (get-in theme [:layouts id])]
-                    (layout-fn render-fn args))))]
+(defn render-page
+  [theme [url {:keys [layout] :as context}]]
+  (let [render (mk-render-fn url theme context)]
     [url (render layout)]))
 
 (defn wrap-page

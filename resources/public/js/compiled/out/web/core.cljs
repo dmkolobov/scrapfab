@@ -3,3 +3,5 @@
 (enable-console-print!)
 
 (println "foobar! car!")
+
+(.colorize js/CodeMirror)
