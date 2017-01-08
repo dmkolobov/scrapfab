@@ -4,58 +4,46 @@
             [clojure.tools.reader :as reader]
             [clojure.tools.reader.edn :as edn]
             [clojure.tools.reader.reader-types :as reader-types]
-            [stasis.core :as stasis]))
+            [stasis.core :as stasis]
 
-(defn get-path [file] (.getPath file))
-(defn get-name [file] (.getName file))
-
-(defn get-relative-path
-  [base file]
-  (loop [b (clojure.string/split base #"/")
-         p (clojure.string/split (get-path file) #"/")]
-    (if (seq b)
-      (recur (rest b)
-             (rest p))
-      (clojure.string/join "/" p))))
-
-(def edn-pattern #".*\.edn")
-
-(defn- read-content
-  [reader]
-  (->> (java.io.BufferedReader. reader)
-       (line-seq)
-       (string/join "\n")))
-
-(defn- content->map
-  [file]
-  (with-open [rdr (java.io.PushbackReader. (io/reader file))]
-    (let [meta     (edn/read rdr)
-          content  (read-content rdr)]
-      {:filename (get-name file)
-       :path     (get-path file)
-       :meta     meta
-       :content  content})))
+            [web.fs :refer [get-name get-path get-relative-path]]))
 
 (defn- file-filter
   [regex]
   (fn [file] (re-matches regex (get-path file))))
 
-(defn- tree-iter
-  [path regex xf]
-  (eduction (comp (filter (file-filter regex))
+(defn- ext->file-pattern
+  [ext]
+  (re-pattern (str ".*\\" ext)))
+
+(defn- ext->pattern
+  [ext]
+  (re-pattern (str "\\" ext)))
+
+(defn tree-iter
+  [path ext xf]
+  (eduction (comp (filter (file-filter (ext->file-pattern ext)))
+                  (map (juxt #(get-relative-path path %) identity))
                   xf)
             (file-seq (io/file path))))
 
-(defn slurp-files
-  [path regex]
-   (into {}
-         (tree-iter path
-                    regex
-                    (map (juxt #(get-relative-path path %) slurp)))))
+(defn path->ks
+  [path re]
+  (map keyword (string/split (string/replace path re "")
+                             #"/")))
 
-(defn slurp-content
-  [path regex]
-  (into {}
-        (tree-iter path
-                   regex
-                   (map (juxt #(get-relative-path path %) content->map)))))
+(defn file-ks
+  [path ext]
+  (path->ks path (ext->pattern ext)))
+
+(defn slurp-entry [[path file]] [path (slurp file)])
+
+(defn file-tree
+  ([path ext]
+   (file-tree path ext (map identity)))
+
+  ([path ext xf]
+   (let [entry-xf (comp (map slurp-entry) xf)]
+    (reduce (fn [tree [path x]] (assoc-in tree (file-ks path ext) x))
+            {}
+            (tree-iter path ext entry-xf)))))

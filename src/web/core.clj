@@ -6,7 +6,6 @@
             [clojure.string]
             [hiccup.core :as hiccup]
 
-            [web.readers :refer [slurp-content edn-pattern]]
             [web.scrapfab :as scrapfab]))
 
 (defn slurp-css!
