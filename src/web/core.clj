@@ -6,6 +6,7 @@
             [clojure.string]
             [hiccup.core :as hiccup]
 
+            [web.readers :refer [slurp-content edn-pattern]]
             [web.scrapfab :as scrapfab]))
 
 (defn slurp-css!
@@ -32,7 +33,8 @@
   (let [context (assoc context
                   :url url
                   :js  (:js theme)
-                  :css (:css theme))]
+                  :css (:css theme)
+                  :art (slurp-content "resources/public/data/art" edn-pattern))]
     (fn render-fn
       ([id]
        (render-fn id context))
@@ -43,6 +45,7 @@
 (defn render-page
   [theme [url {:keys [layout] :as context}]]
   (let [render (mk-render-fn url theme context)]
+
     [url (render layout)]))
 
 (defn wrap-page
