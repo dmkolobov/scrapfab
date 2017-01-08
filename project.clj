@@ -13,7 +13,9 @@
                  [re-frame "0.8.0"]
                  [stasis "2.3.0"]
                  [ring "1.5.0"]
-                 [hiccup "1.0.5"]]
+
+                 [hiccup "1.0.5"]
+                 [markdown-clj "0.9.91"]]
   :plugins [[lein-ring "0.10.0"]
             [lein-cljsbuild "1.1.3" :exclusions [[org.clojure/clojure]]]]
 

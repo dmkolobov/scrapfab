@@ -1,0 +1,8 @@
+{:title          "Baphomet Firepit"
+ :featured-photo :photos/fire_pit}
+
+Sculpted sheet metal goat head on top of a pentagram base.
+
+* foo
+* bar
+* car
