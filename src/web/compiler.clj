@@ -21,16 +21,30 @@
        :meta     meta
        :content  (render content)})))
 
+(defn file-entry-xf
+  [render]
+  (map (fn [[p f]] [p (render (slurp f))])))
+
+(defn content-entry-xf
+  [render]
+  (map (fn content-xf [[path file]]
+         [path (content->map file render)])))
+
 (defn resource-tree
   [path {:keys [ext render] :as content-type}]
   (file-tree path
              ext
-             (map (fn [[path source]] [path (render source)]))))
+             (file-entry-xf render)))
 
 (defn content-map
   [path {:keys [ext render] :as content-type}]
   (into {}
         (tree-iter path
                    ext
-                   (map (fn [[path file]]
-                          [path (content->map file render)])))))
+                   (content-entry-xf render))))
+
+(defn content-tree
+  [path {:keys [ext render] :as content-type}]
+  (file-tree path
+             ext
+             (content-entry-xf render)))

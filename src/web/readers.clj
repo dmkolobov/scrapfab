@@ -36,14 +36,12 @@
   [path ext]
   (path->ks path (ext->pattern ext)))
 
-(defn slurp-entry [[path file]] [path (slurp file)])
-
 (defn file-tree
   ([path ext]
    (file-tree path ext (map identity)))
 
   ([path ext xf]
-   (let [entry-xf (comp (map slurp-entry) xf)]
-    (reduce (fn [tree [path x]] (assoc-in tree (file-ks path ext) x))
-            {}
-            (tree-iter path ext entry-xf)))))
+   (reduce (fn [tree [path x]]
+             (assoc-in tree (file-ks path ext) x))
+           {}
+           (tree-iter path ext xf))))

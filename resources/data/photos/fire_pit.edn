@@ -1,2 +1,2 @@
 {:src          "/img/fire_pit.jpg"
- :photographer :kit}
+ :photographer (pull :photographers :kit)}
