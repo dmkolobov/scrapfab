@@ -1,5 +1,6 @@
-{:title  "scrapfab"
- :layout :home-page}
+{:title        "scrapfab"
+ :layout       :home-page
+ :welcome-text (content)}
 
 # Home
 

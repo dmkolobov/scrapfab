@@ -1,50 +1,79 @@
 (ns web.compiler
-  (:require [web.fs :refer [get-name get-path]]
-            [web.readers :refer [tree-iter file-tree]]
+  (:require [web.fs :refer [drop-ext]]
             [clojure.tools.reader.edn :as edn]
+            [clojure.tools.reader.reader-types :refer [string-push-back-reader read-char]]
             [clojure.java.io :as io]
-            [clojure.string :as string]))
+            [clojure.string :as string]
+            [clojure.walk :refer [postwalk-replace]]
+            [stasis.core :refer [slurp-directory]]
+            [markdown.core :refer [md-to-html-string]]
+            [hiccup.core :as hiccup]))
 
-(defn- read-content
-  [reader]
-  (->> (java.io.BufferedReader. reader)
-       (line-seq)
-       (string/join "\n")))
+;; ---- default content types ----
 
-(defn- content->map
-  [file render]
-  (with-open [rdr (java.io.PushbackReader. (io/reader file))]
-    (let [meta     (edn/read rdr)
-          content  (read-content rdr)]
-      {:filename (get-name file)
-       :path     (get-path file)
-       :meta     meta
-       :content  (render content)})))
+(def edn
+  {:ext "edn"
+   :render  read-string})
 
-(defn file-entry-xf
-  [render]
-  (map (fn [[p f]] [p (render (slurp f))])))
+(def md
+  {:ext "md"
+   :render  (comp hiccup/h md-to-html-string)})
 
-(defn content-entry-xf
-  [render]
-  (map (fn content-xf [[path file]]
-         [path (content->map file render)])))
+(def html
+  {:ext "html"
+   :render  identity})
 
-(defn resource-tree
-  [path {:keys [ext render] :as content-type}]
-  (file-tree path
-             ext
-             (file-entry-xf render)))
+(def hiccup
+  {:ext "hiccup"
+   :render  (fn [source] (hiccup/html source))})
 
-(defn content-map
-  [path {:keys [ext render] :as content-type}]
-  (into {}
-        (tree-iter path
-                   ext
-                   (content-entry-xf render))))
+(defn meta-content-pair
+  [source render]
+  (let [reader (string-push-back-reader source)
+        meta   (edn/read reader)]
+    (loop [c (read-char reader)
+           s (StringBuilder.)]
+      (if (some? c)
+        (recur (read-char reader)
+               (.append s c))
+        [meta (render (str s))]))))
 
-(defn content-tree
-  [path {:keys [ext render] :as content-type}]
-  (file-tree path
-             ext
-             (content-entry-xf render)))
+;; ---- public api ----
+
+(defn content-pattern
+  [content-type]
+  (re-pattern
+    (str "\\." (:ext content-type))))
+
+(defn content-xf
+  [content-type]
+  (let [render (:render content-type)]
+    (map (fn [[path source]] [path (render source)]))))
+
+(defn meta-file
+  [{:keys [ext render]}]
+  {:ext    ext
+   :render (fn [source] (meta-content-pair source render))})
+
+(defn slurp-content
+  [path content-type]
+  (eduction (content-xf content-type)
+            (slurp-directory path (content-pattern content-type))))
+
+(defn path->ks
+  [path]
+  (map keyword (rest (string/split (drop-ext path) #"/"))))
+
+(defn add-tree-entry
+  [tree [path x]]
+  (assoc-in tree (path->ks path) x))
+
+(defn into-tree
+  ([tree content-map]
+   (reduce add-tree-entry tree content-map))
+  ([tree xf content-map]
+   (transduce xf (completing add-tree-entry) tree content-map)))
+
+(defn as-tree
+  ([content-map] (into-tree {} content-map))
+  ([xf content-map] (into-tree {} xf content-map)))
