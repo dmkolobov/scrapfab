@@ -9,34 +9,46 @@
 
             [hiccup.core :as hiccup]
 
-            [web.pull :refer [pull]]
-            [web.compiler :as c]))
+            [web.pull :refer [analyze compile]]
+            [web.compiler :refer [into-tree meta-file slurp-content] :as c]))
 
 (def pull-content
   (map (fn [[path [meta content]]]
          [path (postwalk-replace {'(content) content} meta)])))
 
 (def data-tree
-  (let [edn (c/slurp-content "resources/data" c/edn)
-        md  (c/slurp-content "resources/data" (c/meta-file c/md))]
+  (let [edn (slurp-content "resources/data" c/edn)
+        md  (slurp-content "resources/data" (meta-file c/md))]
     (-> {}
-        (c/into-tree edn)
-        (c/into-tree pull-content md))))
+        (into-tree edn)
+        (into-tree pull-content md))))
 
 (def site
   (merge data-tree
-         {:pages (into {} (c/slurp-content "resources/pages" (c/meta-file c/md)))}))
+         {:pages (into {} (slurp-content "resources/pages" (meta-file c/md)))}))
 
 (defn pp [s] (with-out-str (pprint s)))
+
+(def test1
+  '{:debug "hello, world"
+    :foo   {:text #{(pull :debug) "bar" "car"}}
+    :bar   :foo
+    :txt   (pull :fin)
+    :fin   {:foo (pull :foo)
+            :bar (pull :bar)}})
 
 (def pages
   {"/" (hiccup/html
          [:div
-          [:h1 "SCRAPFAB!"]
+          [:h1 ".SCRAPFAB."]
           [:pre (pp site)]
+          [:pre (pp (compile site))]
           [:hr]
           [:pre (pp (get-in site [:art :fire_pit]))]
           [:hr]
-          [:pre (pp (pull site site))]])})
+          [:pre (pp (analyze site))]
+          [:pre (pp test1)]
+          [:pre (pp (analyze test1))]
+          [:pre (pp (compile test1))]])})
 
 (def app (stasis/serve-pages pages))

@@ -11,44 +11,29 @@
 
 ;; ---- default content types ----
 
-(def edn
-  {:ext "edn"
-   :render  read-string})
-
-(def md
-  {:ext "md"
-   :render  (comp hiccup/h md-to-html-string)})
-
-(def html
-  {:ext "html"
-   :render  identity})
-
-(def hiccup
-  {:ext "hiccup"
-   :render  (fn [source] (hiccup/html source))})
+(def edn    {:ext "edn"  :render  read-string})
+(def md     {:ext "md"   :render  (comp hiccup/h md-to-html-string)})
+(def html   {:ext "html" :render  identity})
+(def hiccup {:ext "clj"  :render  (fn [source] (hiccup/html source))})
 
 (defn meta-content-pair
   [source render]
   (let [reader (string-push-back-reader source)
         meta   (edn/read reader)]
-    (loop [c (read-char reader)
-           s (StringBuilder.)]
+    (loop [c (read-char reader) s (StringBuilder.)]
       (if (some? c)
-        (recur (read-char reader)
-               (.append s c))
+        (recur (read-char reader) (.append s c))
         [meta (render (str s))]))))
 
 ;; ---- public api ----
 
 (defn content-pattern
-  [content-type]
-  (re-pattern
-    (str "\\." (:ext content-type))))
+  [{:keys [ext] :as content-type}]
+  (re-pattern (str "\\." ext)))
 
 (defn content-xf
-  [content-type]
-  (let [render (:render content-type)]
-    (map (fn [[path source]] [path (render source)]))))
+  [{:keys [render] :as content-type}]
+  (map (fn [[path source]] [path (render source)])))
 
 (defn meta-file
   [{:keys [ext render]}]
@@ -73,7 +58,3 @@
    (reduce add-tree-entry tree content-map))
   ([tree xf content-map]
    (transduce xf (completing add-tree-entry) tree content-map)))
-
-(defn as-tree
-  ([content-map] (into-tree {} content-map))
-  ([xf content-map] (into-tree {} xf content-map)))
