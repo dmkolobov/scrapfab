@@ -74,3 +74,8 @@
                       {}
                       (analyze form))]
     (prewalk-replace smap form)))
+
+(defn pull
+  [context form]
+  (prewalk (fn [x] (if (pull-form? x) (get-in context (rest x)) x))
+           form))

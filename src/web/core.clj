@@ -4,51 +4,41 @@
             [clojure.set :refer [rename-keys]]
             [clojure.pprint :refer [pprint]]
             [clojure.java.io :as io]
-            [clojure.string]
+            [clojure.string :as string]
             [clojure.walk :refer [prewalk postwalk-replace]]
 
             [hiccup.core :as hiccup]
 
-            [web.pull :refer [analyze compile]]
+            [web.user]
+            [web.pull :refer [analyze compile pull]]
             [web.compiler :refer [into-tree meta-file slurp-content] :as c]))
 
 (def pull-content
   (map (fn [[path [meta content]]]
          [path (postwalk-replace {'(content) content} meta)])))
 
-(def data-tree
+(def site-context
   (let [edn (slurp-content "resources/data" c/edn)
         md  (slurp-content "resources/data" (meta-file c/md))]
     (-> {}
         (into-tree edn)
-        (into-tree pull-content md))))
+        (into-tree pull-content md)
+        (compile))))
+
+(defn clj->html [path] (string/replace path #"\.clj" ".html"))
+
+(defn eval-clj
+  [site-ns context [meta source]]
+  (binding [*ns* (the-ns site-ns)]
+    (with-bindings {(intern site-ns 'site) (pull context meta)}
+      (eval source))))
 
 (def site
-  (merge data-tree
-         {:pages (into {} (slurp-content "resources/pages" (meta-file c/md)))}))
+  (into {}
+        (map (fn [[path meta-clj]]
+               [(clj->html path)
+                (hiccup/html
+                  (eval-clj 'web.user site-context meta-clj))]))
+        (slurp-content "resources/pages" (meta-file c/hiccup))))
 
-(defn pp [s] (with-out-str (pprint s)))
-
-(def test1
-  '{:debug "hello, world"
-    :foo   {:text #{(pull :debug) "bar" "car"}}
-    :bar   :foo
-    :txt   (pull :fin)
-    :fin   {:foo (pull :foo)
-            :bar (pull :bar)}})
-
-(def pages
-  {"/" (hiccup/html
-         [:div
-          [:h1 ".SCRAPFAB."]
-          [:pre (pp site)]
-          [:pre (pp (compile site))]
-          [:hr]
-          [:pre (pp (get-in site [:art :fire_pit]))]
-          [:hr]
-          [:pre (pp (analyze site))]
-          [:pre (pp test1)]
-          [:pre (pp (analyze test1))]
-          [:pre (pp (compile test1))]])})
-
-(def app (stasis/serve-pages pages))
+(def app (stasis/serve-pages site))

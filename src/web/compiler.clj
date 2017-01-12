@@ -11,10 +11,10 @@
 
 ;; ---- default content types ----
 
-(def edn    {:ext "edn"  :render  read-string})
+(def edn    {:ext "edn"  :render  edn/read-string})
 (def md     {:ext "md"   :render  (comp hiccup/h md-to-html-string)})
 (def html   {:ext "html" :render  identity})
-(def hiccup {:ext "clj"  :render  (fn [source] (hiccup/html source))})
+(def hiccup {:ext "clj"  :render  read-string})
 
 (defn meta-content-pair
   [source render]
