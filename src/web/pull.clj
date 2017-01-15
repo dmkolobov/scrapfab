@@ -2,6 +2,7 @@
   (:use [clojure.walk]
         [clojure.set :refer [difference]]))
 
+
 (defn pull-form? [form] (and (list? form) (= 'pull (first form))))
 
 (defn walk-pull
@@ -16,7 +17,7 @@
     (doall
       (map (fn [[k v]] (collect-pulls- state (conj ks k) v))
          form))
-    (prewalk #(walk-pull state ks %) form)))
+    (prewalk #(walk-pull state ks %) form))) ;; allows pull cycles in non-map values.
 
 (defn collect-pulls
   [form]
@@ -35,8 +36,7 @@
                                     (map #(vector pull %))))]
                   deps
                   [[pull nil]])))
-            (into #{}
-                  (map second pulls)))))
+            (into #{} (map second pulls)))))
 
 (defn assoc-set
   [m [v dep]]
