@@ -4,8 +4,6 @@
 
             [clojure.set :refer [rename-keys]]
             [clojure.pprint :refer [pprint]]
-            [clojure.java.io :as io]
-            [clojure.string :as string]
             [clojure.walk :refer [prewalk postwalk-replace]]
 
             [hiccup.core :as hiccup]
@@ -17,14 +15,25 @@
             [optimus.strategies :refer [serve-live-assets-autorefresh]]
             [optimus.export]
 
+            [clojure.tools.reader.edn :as edn]
+            [clojure.tools.reader.reader-types :refer [string-push-back-reader read-char]]
+
             [web.user]
             [web.pull :refer [analyze compile pull]]
-            [web.compiler :refer [into-tree meta-content slurp-ext] :as c]
-            [clojure.tools.reader.edn :as edn]))
+            [web.compiler :refer [into-tree slurp-ext slurp-pages]]))
 
 (defn md-template
   [[meta content]]
   (postwalk-replace {'(content) (md-to-html-string content)} meta))
+
+(defn meta-content
+  [source]
+  (let [reader (string-push-back-reader source)
+        meta   (edn/read reader)]
+    (loop [c (read-char reader) s (StringBuilder.)]
+      (if (some? c)
+        (recur (read-char reader) (.append s c))
+        [meta (str s)]))))
 
 (def site-context
    (-> {}
@@ -34,8 +43,6 @@
                   (slurp-ext "resources/data" "md"))
        (compile)))
 
-(defn clj->html [path] (string/replace path #"\.clj" ".html"))
-
 (defn get-assets
   []
   (concat
@@ -43,17 +50,6 @@
                                              "/css/main.css"])
     (assets/load-bundle "public" "app.js" [#"/js/compiled/out/*"
                                            "/js/compiled/web.js"])))
-
-(defn matching-ext
-  [ext]
-  (fn [f]
-    (re-matches (re-pattern (str ".*\\." ext))
-                (.getPath f))))
-
-(defn relative-pairs
-  [path]
-  (fn [f]
-    [(string/replace (.getPath f) path "") f]))
 
 (defn eval-template
   [ns context source]
@@ -63,18 +59,13 @@
 
 (defn get-pages
   []
-  (into {}
-        (comp (filter (matching-ext "clj"))
-              (map (relative-pairs "resources/pages"))
-              (map (juxt (comp clj->html first)
-                         (comp (fn [file]
-                                 (fn [context]
-                                   (let [[meta source] (meta-content (slurp file))
-                                         context       (merge context (pull site-context meta))]
-                                     (hiccup/html
-                                       (eval-template 'web.user context source)))))
-                               second))))
-        (file-seq (io/file "resources/pages"))))
+  (slurp-pages "resources/pages"
+               "clj"
+               (fn [context source]
+                 (let [[meta source] (meta-content source)
+                       context       (assoc context
+                                       :current-page (pull site-context meta))]
+                   (hiccup/html (eval-template 'web.user context source))))))
 
 (def app (-> (stasis/serve-pages get-pages)
              (optimus/wrap get-assets optimizations/all serve-live-assets-autorefresh)

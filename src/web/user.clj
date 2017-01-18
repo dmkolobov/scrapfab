@@ -15,5 +15,8 @@
     [:div
      [:div.scrap-logo "SCRAP"]
      [:div.fab-logo "FAB"]]
-    [:h1 "SCRAPFAB!"]
-    body]])
+    body
+    [:pre
+     (with-out-str
+       (pprint
+         (:current-page context)))]]])

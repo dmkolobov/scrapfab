@@ -1,4 +1,4 @@
-{:title "scrap!fab!!!"
+{:title "scrap!fab!"
  :art    (pull :art)
  :kit    (pull :photographers)
  :photos (pull :photos)}

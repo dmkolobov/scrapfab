@@ -1,7 +1,5 @@
 (ns web.compiler
-  (:require [clojure.tools.reader.edn :as edn]
-            [clojure.tools.reader.reader-types :refer [string-push-back-reader read-char]]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.walk :refer [postwalk-replace]]
             [stasis.core :refer [slurp-directory]]
@@ -11,15 +9,6 @@
 (defn drop-ext
   [path]
   (first (string/split path #"\.")))
-
-(defn meta-content
-  [source]
-  (let [reader (string-push-back-reader source)
-        meta   (edn/read reader)]
-    (loop [c (read-char reader) s (StringBuilder.)]
-      (if (some? c)
-        (recur (read-char reader) (.append s c))
-        [meta (str s)]))))
 
 (defn slurp-ext
   [path ext]
@@ -38,3 +27,34 @@
    (reduce add-tree-entry tree content-map))
   ([tree xf content-map]
    (transduce xf (completing add-tree-entry) tree content-map)))
+
+(defn matching-ext
+  [ext]
+  (fn [f]
+    (re-matches (re-pattern (str ".*\\." ext))
+                (.getPath f))))
+
+(defn relative-pairs
+  [path]
+  (fn [f]
+    [(string/replace (.getPath f) path "") f]))
+
+(defn ext->html
+  [ext]
+  (fn [path]
+    (string/replace path (re-pattern (str "\\." ext)) ".html")))
+
+(defn render-page
+  [f]
+  (fn [file]
+    (fn [context]
+      (f context (slurp file)))))
+
+(defn slurp-pages
+  [path ext f]
+  (into {}
+        (comp (filter (matching-ext ext))
+              (map (comp (juxt (comp (ext->html ext) first)
+                               (comp (render-page f) second))
+                         (relative-pairs path))))
+        (file-seq (io/file path))))
