@@ -77,5 +77,8 @@
 
 (defn pull
   [context form]
-  (prewalk (fn [x] (if (pull-form? x) (get-in context (rest x)) x))
+  (prewalk (fn [x]
+             (if (pull-form? x)
+               (get-in context (rest x))
+               x))
            form))
