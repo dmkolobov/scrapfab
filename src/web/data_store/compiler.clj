@@ -14,20 +14,24 @@
     :x [(pull :debug :hello) 333 (pull :debug :world)]
     :y #{666 (pull :debug) (pull :x)}})
 
-(defn child-ks?
-  [ks x]
-  (= (take (count ks) x) ks))
+(defn pull? [x] (and (sequential? x) (= 'pull (first x))))
 
-(defn resolve-deps
-  [tuples [_ & ks :as pull]]
+(defn find-deps
+  [index {:keys [arg-ks form]}]
   (into #{}
-        (comp (filter (comp #(child-ks? ks %) first))
-              (map (comp #(vector pull %) second)))
-        tuples))
+        (map (fn [[_ child-form]] (vector form child-form)))
+        (ana/analyze pull? [] (get-in index arg-ks))))
+
+(defn index-ast
+  [ast]
+  (reduce (fn [index {:keys [ks form]}]
+            (assoc-in index ks form))
+          {}
+          ast))
 
 (defn compile-edges
   [ast]
-  (into #{}
-        (mapcat (comp (partial resolve-deps ast)
-                      second))
-        ast))
+  (transduce (map (partial find-deps (index-ast ast)))
+             (completing into)
+             #{}
+             ast))
