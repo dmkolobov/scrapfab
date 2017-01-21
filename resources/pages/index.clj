@@ -1,5 +1,5 @@
 {:title "scrap!fab!"
- :art    (pull :art)
+ :arts   (pull :art)
  :kit    (pull :photographers)
  :photos (pull :photos)}
 

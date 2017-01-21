@@ -15,33 +15,24 @@
             [optimus.strategies :refer [serve-live-assets-autorefresh]]
             [optimus.export]
 
-            [clojure.tools.reader.edn :as edn]
-            [clojure.tools.reader.reader-types :refer [string-push-back-reader read-char]]
-
             [web.user]
-            [web.pull :refer [analyze compile pull]]
-            [web.compiler :refer [into-tree slurp-ext slurp-pages]]))
+            [web.string-readers :refer [with-edn-header]]
+            [web.data-store :refer [file-db]]
+            [web.compiler :refer [slurp-pages]]
+            [clojure.tools.reader.edn :as edn]))
 
 (defn md-template
   [[meta content]]
   (postwalk-replace {'(content) (md-to-html-string content)} meta))
 
-(defn meta-content
-  [source]
-  (let [reader (string-push-back-reader source)
-        meta   (edn/read reader)]
-    (loop [c (read-char reader) s (StringBuilder.)]
-      (if (some? c)
-        (recur (read-char reader) (.append s c))
-        [meta (str s)]))))
+(def data-store
+  (file-db {:path   "resources/data"
+            :ext    "edn"
+            :render edn/read-string}
 
-(def site-context
-   (-> {}
-       (into-tree (map (juxt first (comp edn/read-string second)))
-                  (slurp-ext "resources/data" "edn"))
-       (into-tree (map (juxt first (comp md-template meta-content second)))
-                  (slurp-ext "resources/data" "md"))
-       (compile)))
+           {:path   "resources/data"
+            :ext    "md"
+            :render (comp md-template with-edn-header)}))
 
 (defn get-assets
   []
@@ -62,9 +53,9 @@
   (slurp-pages "resources/pages"
                "clj"
                (fn [context source]
-                 (let [[meta source] (meta-content source)
+                 (let [[meta source] (with-edn-header source)
                        context       (assoc context
-                                       :current-page (pull site-context meta))]
+                                       :current-page (pull data-store meta))]
                    (hiccup/html (eval-template 'web.user context source))))))
 
 (def app (-> (stasis/serve-pages get-pages)
