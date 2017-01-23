@@ -22,3 +22,7 @@
   (let [state (atom #{})]
     (analyze-form pred state (vec ks) form)
     @state))
+
+(defrecord PullForm [form file ks arg-ks])
+
+(defn pull-record? [x] (instance? PullForm x))

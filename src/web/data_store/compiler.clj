@@ -2,7 +2,8 @@
   (:require [web.data-store.analyzer :as ana]
             [clojure.walk :refer [prewalk-replace]]
             [ubergraph.core :as uber]
-            [ubergraph.alg :as alg]))
+            [ubergraph.alg :as alg]
+            [clojure.pprint :refer [pprint]]))
 
 (def example-form
   '{:foo "foo."
@@ -14,18 +15,20 @@
     :x [(pull :debug :hello) 333 (pull :debug :world)]
     :y #{666 (pull :debug) (pull :x)}})
 
-(defn pull? [x] (and (sequential? x) (= 'pull (first x))))
-
 (defn find-deps
-  [index {:keys [arg-ks form]}]
+  [index {:keys [ks arg-ks] :as vert}]
   (into #{}
-        (map (fn [[_ child-form]] (vector form child-form)))
-        (ana/analyze pull? [] (get-in index arg-ks))))
+        (map (fn [[_ child-vert]]
+               (vector vert child-vert {})))
+        (ana/analyze ana/pull-record?
+                     [arg-ks]
+                     (let [tree (get-in index arg-ks)]
+                       #{tree}))))
 
 (defn index-ast
   [ast]
-  (reduce (fn [index {:keys [ks form]}]
-            (assoc-in index ks form))
+  (reduce (fn [index {:keys [ks] :as vert}]
+            (assoc-in index ks vert))
           {}
           ast))
 

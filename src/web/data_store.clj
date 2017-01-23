@@ -5,7 +5,7 @@
             [stasis.core :refer [slurp-directory]]
 
             [web.data-store.compiler :refer [compile-edges]]
-            [web.data-store.analyzer :refer [analyze]]
+            [web.data-store.analyzer :refer [analyze map->PullForm]]
             [clojure.tools.reader.edn :as edn]))
 
 (defn drop-ext
@@ -18,44 +18,39 @@
 
 (defn pull? [x] (and (sequential? x) (= 'pull (first x))))
 
-(defn analyze-file
-  [render [path source]]
-  (let [ks   (path->ks path)
-        form (render source)]
-    (map (fn [[ks pull]]
-           {:form   pull
-            :file   path
-            :ks     ks
-            :arg-ks (rest pull)})
-         (analyze pull? ks form))))
 
-(defn analyze-dir
-  "Given a map containing the following keys:
-
-  - 'path'   : the path to the root of the data tree
-  - 'ext'    : the extension of the data files
-  - 'render' : a function which is called with the file contents, and returns an EDN data
-               structure.
-
-  returns a sequence of [ks edn-form] tuples."
+(defn form-seq
   [{:keys [path ext render]}]
-  (into []
-        (mapcat #(analyze-file render %))
-        (slurp-directory path (re-pattern (str "\\." ext)))))
+  (eduction (map (juxt first (comp render second)))
+            (slurp-directory path (re-pattern (str "\\." ext)))))
+
+(defn read-roots
+  [configs]
+  (transduce (map form-seq) (completing into) [] configs))
+
+(defn analyze-forms
+  [form-seq]
+  (transduce (map (fn [[path form]]
+                    (let [ks (path->ks path)]
+                      (eduction (map (fn [[ks sub-form]]
+                                       (map->PullForm
+                                        {:form   sub-form
+                                         :file   path
+                                         :ks     ks
+                                         :arg-ks (rest sub-form)})))
+                                (analyze pull? ks form)))))
+             (completing into)
+             []
+             form-seq))
 
 (defn file-db
   [& configs]
-  (let [ast (into [] (mapcat analyze-dir configs))]
-    {:ast   ast
-     :graph (->> ast
+  (let [form-seq (read-roots configs)]
+    {:forms form-seq
+     :graph (->> form-seq
+                 (analyze-forms)
                  (compile-edges)
                  (apply uber/digraph))}))
-
-(defn file-db
-  [& configs]
-  (update-ast {}
-              (fn [_]
-                (into [] (mapcat analyze-dir configs)))))
 
 (defn fx
   []
