@@ -1,27 +1,29 @@
 (ns web.data-store.analyzer
   (:require [clojure.walk :refer [prewalk]]))
 
-(defn analyze-walk
-  [pred state ks form]
-  (when (pred form)
-    (swap! state conj [ks form]))
-  form)
+(defn branch?
+  [pred x]
+  (and (not (pred x)) (coll? x)))
 
-(defn analyze-form
-  [pred state ks form]
-  (if (map? form)
-    (doseq [[k v] form] (analyze-form pred state (conj ks k) v))
-    (prewalk #(analyze-walk pred state ks %) form)))
+(defn collect-forms
+  [pred form]
+  (filter pred
+          (tree-seq #(branch? pred %) seq form)))
 
 (defn analyze
-  "Given an EDN 'form' and a 'pred' function, recursively walk 'form' while
-  keeping track of the path (as in the get-in, update-in, assoc-in, etc)
-  and return a set of [path sub-form] tuples, where 'sub-form' is a child
-  for which 'pred' returns true."
   [pred ks form]
-  (let [state (atom #{})]
-    (analyze-form pred state (vec ks) form)
-    @state))
+  (cond (pred form)
+        [[ks form]]
+
+        (map? form)
+        (transduce (map (fn [[k v]] (analyze pred (conj (vec ks) k) v)))
+                   (completing into)
+                   []
+                   form)
+
+        :default
+        (eduction (map #(vector ks %))
+                  (collect-forms pred form))))
 
 (defrecord PullForm [form file ks arg-ks])
 

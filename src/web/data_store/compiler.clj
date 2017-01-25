@@ -5,25 +5,11 @@
             [ubergraph.alg :as alg]
             [clojure.pprint :refer [pprint]]))
 
-(def example-form
-  '{:foo "foo."
-    :bar "bar."
-    :one ["one" (pull :foo)]
-    :two ["two" (pull :bar)]
-    :debug {:hello (pull :one)
-            :world (pull :two)}
-    :x [(pull :debug :hello) 333 (pull :debug :world)]
-    :y #{666 (pull :debug) (pull :x)}})
-
 (defn find-deps
-  [index {:keys [ks arg-ks] :as vert}]
+  [index {:keys [arg-ks] :as vert}]
   (into #{}
-        (map (fn [[_ child-vert]]
-               (vector vert child-vert {})))
-        (ana/analyze ana/pull-record?
-                     [arg-ks]
-                     (let [tree (get-in index arg-ks)]
-                       #{tree}))))
+        (map (fn [child-vert] (vector vert child-vert {})))
+        (ana/collect-forms ana/pull-record? (get-in index arg-ks))))
 
 (defn index-ast
   [ast]
