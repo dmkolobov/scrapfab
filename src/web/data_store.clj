@@ -3,9 +3,6 @@
             [ubergraph.core :as uber]
             [ubergraph.alg :as alg]
             [stasis.core :refer [slurp-directory]]
-
-            [web.data-store.compiler :refer [compile-edges]]
-            [web.data-store.analyzer :refer [analyze map->PullForm]]
             [clojure.tools.reader.edn :as edn]))
 
 (defn drop-ext
@@ -18,6 +15,7 @@
 
 (defn pull? [x] (and (sequential? x) (= 'pull (first x))))
 
+;; ---------- READING ------------
 
 (defn form-seq
   [{:keys [path ext render]}]
@@ -27,6 +25,36 @@
 (defn read-roots
   [configs]
   (transduce (map form-seq) (completing into) [] configs))
+
+;; ---------- ANALSIS ------------
+
+(defn branch?
+  [pred x]
+  (and (not (pred x)) (coll? x)))
+
+(defn collect-forms
+  [pred form]
+  (filter pred
+          (tree-seq #(branch? pred %) seq form)))
+
+(defn analyze
+  [pred ks form]
+  (cond (pred form)
+        [[ks form]]
+
+        (map? form)
+        (transduce (map (fn [[k v]] (analyze pred (conj (vec ks) k) v)))
+                   (completing into)
+                   []
+                   form)
+
+        :default
+        (eduction (map #(vector ks %))
+                  (collect-forms pred form))))
+
+(defrecord PullForm [form file ks])
+
+(defn pull-record? [x] (instance? PullForm x))
 
 (def analyze-xf
   (comp (map (juxt (comp path->ks first) second))
@@ -41,14 +69,36 @@
   [form-seq]
   (transduce analyze-xf (completing into) [] form-seq))
 
+;; ---------- COMPILATION ------------
+
+(defn find-deps
+  [index {:keys [form] :as vert}]
+  (into #{}
+        (map (fn [child-vert] [vert child-vert]))
+        (collect-forms pull-record? (get-in index (rest form)))))
+
+(defn index-ast
+  [ast]
+  (reduce (fn [index {:keys [ks] :as vert}] (assoc-in index ks vert))
+          {}
+          ast))
+
+(defn compile-graph
+  [ast]
+  (transduce (map (partial find-deps (index-ast ast)))
+             (completing #(apply uber/add-edges %1 %2))
+             (uber/digraph)
+             ast))
+
+;; ---------- PUBLIC API -------------
+
 (defn file-db
   [& configs]
   (let [form-seq (read-roots configs)]
     {:forms form-seq
      :graph (->> form-seq
                  (analyze-forms)
-                 (compile-edges)
-                 (apply uber/digraph))}))
+                 (compile-graph))}))
 
 (defn fx
   []
