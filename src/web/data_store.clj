@@ -28,20 +28,18 @@
   [configs]
   (transduce (map form-seq) (completing into) [] configs))
 
+(def analyze-xf
+  (comp (map (juxt (comp path->ks first) second))
+        (map (juxt first (partial apply analyze pull?)))
+        (map (fn [[path entries]]
+               (eduction (map (fn [[ks sub-form]]
+                                (map->PullForm
+                                  {:form sub-form :file path :ks ks})))
+                         entries)))))
+
 (defn analyze-forms
   [form-seq]
-  (transduce (map (fn [[path form]]
-                    (let [ks (path->ks path)]
-                      (eduction (map (fn [[ks sub-form]]
-                                       (map->PullForm
-                                        {:form   sub-form
-                                         :file   path
-                                         :ks     ks
-                                         :arg-ks (rest sub-form)})))
-                                (analyze pull? ks form)))))
-             (completing into)
-             []
-             form-seq))
+  (transduce analyze-xf (completing into) [] form-seq))
 
 (defn file-db
   [& configs]

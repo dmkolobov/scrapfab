@@ -25,6 +25,6 @@
         (eduction (map #(vector ks %))
                   (collect-forms pred form))))
 
-(defrecord PullForm [form file ks arg-ks])
+(defrecord PullForm [form file ks])
 
 (defn pull-record? [x] (instance? PullForm x))

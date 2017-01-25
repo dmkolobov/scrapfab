@@ -6,10 +6,10 @@
             [clojure.pprint :refer [pprint]]))
 
 (defn find-deps
-  [index {:keys [arg-ks] :as vert}]
+  [index {:keys [form] :as vert}]
   (into #{}
         (map (fn [child-vert] (vector vert child-vert {})))
-        (ana/collect-forms ana/pull-record? (get-in index arg-ks))))
+        (ana/collect-forms ana/pull-record? (get-in index (rest form)))))
 
 (defn index-ast
   [ast]
