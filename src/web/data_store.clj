@@ -107,21 +107,34 @@
   [context [path form]]
   (assoc-in context (path->ks path) form))
 
-(defn file-db
-  [& configs]
-  (let [forms (read-forms configs)
-        graph (->> forms (analyze-forms) (compile-graph))]
-    {:forms   forms
-     :graph   graph
-     :context (reduce add-context {} forms)}))
-
-(defn resolve-db
-  [{:keys [graph context] :as db}]
+(defn build
+  [graph context]
   (reduce (fn [smap {:keys [form]}]
             (assoc smap
               form (walk/postwalk-replace smap (get-in context (rest form)))))
           {}
           (reverse (alg/topsort graph))))
+
+(defn file-db
+  [& configs]
+  (let [forms   (read-forms configs)
+        graph   (->> forms (analyze-forms) (compile-graph))
+        context (reduce add-context {} forms)]
+    (atom
+      {:forms   forms
+       :graph   graph
+       :context context
+       :smap    (build graph context)})))
+
+(defn pull
+  [db q-form]
+  (let [{:keys [context smap]} @db]
+    (walk/postwalk (fn [sub-form]
+                     (if (pull? sub-form)
+                       (walk/postwalk-replace smap
+                                              (get-in context (rest sub-form)))
+                       sub-form))
+                   q-form)))
 
 (defn fx
   []
