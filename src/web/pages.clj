@@ -1,32 +1,10 @@
-(ns web.compiler
+(ns web.pages
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.walk :refer [postwalk-replace]]
             [stasis.core :refer [slurp-directory]]
             [markdown.core :refer [md-to-html-string]]
             [hiccup.core :as hiccup]))
-
-(defn drop-ext
-  [path]
-  (first (string/split path #"\.")))
-
-(defn slurp-ext
-  [path ext]
-  (slurp-directory path (re-pattern (str "\\." ext))))
-
-(defn path->ks
-  [path]
-  (map keyword (rest (string/split (drop-ext path) #"/"))))
-
-(defn add-tree-entry
-  [tree [path x]]
-  (assoc-in tree (path->ks path) x))
-
-(defn into-tree
-  ([tree content-map]
-   (reduce add-tree-entry tree content-map))
-  ([tree xf content-map]
-   (transduce xf (completing add-tree-entry) tree content-map)))
 
 (defn matching-ext
   [ext]
@@ -40,6 +18,8 @@
     [(string/replace (.getPath f) path "") f]))
 
 (defn ext->html
+  "Returns a function which will convert any paths with 'ext' as the extension
+  to URLs ending with .html"
   [ext]
   (fn [path]
     (string/replace path (re-pattern (str "\\." ext)) ".html")))
@@ -47,8 +27,7 @@
 (defn render-page
   [f]
   (fn [file]
-    (fn [context]
-      (f context (slurp file)))))
+    (fn [context] (f context (slurp file)))))
 
 (defn slurp-pages
   [path ext f]

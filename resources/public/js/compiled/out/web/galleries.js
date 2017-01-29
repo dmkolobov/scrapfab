@@ -141,4 +141,4 @@ web.galleries.scale_layout = (function web$galleries$scale_layout(container,layo
 return web.galleries.do_scale_layout.call(null,cljs.core.first.call(null,container),layout,gap);
 });
 
-//# sourceMappingURL=galleries.js.map?rel=1484732371829
+//# sourceMappingURL=galleries.js.map?rel=1485728765508

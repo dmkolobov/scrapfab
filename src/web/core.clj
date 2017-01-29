@@ -17,8 +17,8 @@
 
             [web.user]
             [web.string-readers :refer [with-edn-header]]
-            [web.data-store :refer [file-db]]
-            [web.compiler :refer [slurp-pages]]
+            [web.data-store :refer [file-db pull]]
+            [web.pages :refer [slurp-pages]]
             [clojure.tools.reader.edn :as edn]))
 
 (defn md-template

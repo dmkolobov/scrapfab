@@ -1,2 +1,2 @@
 {:src          "/img/fire_pit.jpg"
- :photographer (pull :photographers :sam)}
+ :photographer (require :photographers :sam)}

@@ -3,8 +3,7 @@
             [clojure.walk :as walk]
             [ubergraph.core :as uber]
             [ubergraph.alg :as alg]
-            [stasis.core :refer [slurp-directory]]
-            [clojure.tools.reader.edn :as edn]))
+            [stasis.core :refer [slurp-directory]]))
 
 (defn drop-ext
   "Given a path, retur"
@@ -13,11 +12,13 @@
 
 (defn path->ks
   "Converts a file path to a keyword sequence as in the second argument
-   to 'assoc-in'."
+   to 'assoc-in', 'get-in', etc."
   [path]
   (map keyword (rest (string/split (drop-ext path) #"/"))))
 
-(defn pull? [x] (and (sequential? x) (= 'pull (first x))))
+(defn require?
+  [x]
+  (and (sequential? x) (= 'require (first x))))
 
 ;; ---------- READING ------------
 
@@ -38,8 +39,7 @@
 
 (defn collect-forms
   [pred form]
-  (filter pred
-          (tree-seq #(branch? pred %) seq form)))
+  (filter pred (tree-seq #(branch? pred %) seq form)))
 
 (defn analyze
   "Returns a sequence of [ks sub-form] tuples, where 'pred' returns true
@@ -63,16 +63,16 @@
          (eduction (map #(vector ks %))
                    (collect-forms pred form)))))
 
-(defrecord PullForm [form file ks])
+(defrecord RequireForm [form file ks])
 
-(defn pull-record? [x] (instance? PullForm x))
+(defn require-record? [x] (instance? RequireForm x))
 
 (def analyze-xf
-  (comp (map (juxt first (comp (partial apply analyze pull?)
+  (comp (map (juxt first (comp (partial apply analyze require?)
                                (juxt (comp path->ks first) second))))
         (map (fn [[path entries]]
-               (eduction (map (fn [[ks pull-form]]
-                                (map->PullForm {:form pull-form :file path :ks ks})))
+               (eduction (map (fn [[ks require-form]]
+                                (map->RequireForm {:form require-form :file path :ks ks})))
                          entries)))))
 
 (defn analyze-forms
@@ -81,14 +81,13 @@
 
 ;; ---------- COMPILATION ------------
 
+(def add-edges-reducer (completing uber/add-edges))
+
 (defn add-deps
   [index graph {:keys [form] :as v}]
-  (let [children (collect-forms pull-record? (get-in index (rest form)))]
+  (let [children (collect-forms require-record? (get-in index (rest form)))]
     (if (seq children)
-      (transduce (map (fn [c] [v c]))
-                 (completing uber/add-edges)
-                 graph
-                 children)
+      (transduce (map (fn [c] [v c])) add-edges-reducer graph children)
       (uber/add-nodes graph v))))
 
 (defn index-ast
@@ -135,22 +134,8 @@
   [db q-form]
   (let [{:keys [context smap]} @db]
     (walk/postwalk (fn [sub-form]
-                     (if (pull? sub-form)
+                     (if (require? sub-form)
                        (walk/postwalk-replace smap
                                               (get-in context (rest sub-form)))
                        sub-form))
                    q-form)))
-
-(defn fx
-  []
-  (file-db {:path   "resources/data"
-            :ext    "edn"
-            :render edn/read-string}
-
-           {:path   "resources/data"
-            :ext    "md"
-            :render edn/read-string}
-
-           {:path   "resources/pages"
-            :ext    "clj"
-            :render edn/read-string}))

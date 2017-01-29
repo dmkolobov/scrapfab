@@ -1,9 +1,5 @@
-{:title          "Baphomet Firepit"
- :featured-photo (pull :photos :see_saw)
+{:title          "See-Saw"
+ :featured-photo (require :photos :see_saw)
  :description    (content)}
 
-Sculpted sheet metal goat head on top of a pentagram base.
-
-* foo
-* bar
-* car
+A 16 foot tall see-saw made from recycled materials.
