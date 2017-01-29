@@ -71,6 +71,7 @@
   (comp (map (juxt (comp path->ks first) second))
         (map (juxt first (partial apply analyze pull?)))
         (map (fn [[path entries]]
+               (println path entries)
                (eduction (map (fn [[ks sub-form]]
                                 (map->PullForm
                                   {:form sub-form :file path :ks ks})))
@@ -82,11 +83,15 @@
 
 ;; ---------- COMPILATION ------------
 
-(defn find-deps
-  [index {:keys [form] :as vert}]
-  (into #{}
-        (map (fn [child-vert] [vert child-vert]))
-        (collect-forms pull-record? (get-in index (rest form)))))
+(defn add-deps
+  [index graph {:keys [form] :as v}]
+  (let [children (collect-forms pull-record? (get-in index (rest form)))]
+    (if (seq children)
+      (transduce (map (fn [c] [v c]))
+                 (completing uber/add-edges)
+                 graph
+                 children)
+      (uber/add-nodes graph v))))
 
 (defn index-ast
   [ast]
@@ -95,11 +100,11 @@
           ast))
 
 (defn compile-graph
-  [ast]
-  (transduce (map (partial find-deps (index-ast ast)))
-             (completing #(apply uber/add-edges %1 %2))
-             (uber/digraph)
-             ast))
+  [graph ast]
+  (let [index (index-ast ast)]
+    (reduce (partial add-deps index)
+            graph
+            ast)))
 
 ;; ---------- PUBLIC API -------------
 
@@ -118,13 +123,15 @@
 (defn file-db
   [& configs]
   (let [forms   (read-forms configs)
-        graph   (->> forms (analyze-forms) (compile-graph))
+        ast     (analyze-forms forms)
+        graph   (compile-graph (uber/digraph) ast)
         context (reduce add-context {} forms)]
     (atom
-      {:forms   forms
-       :graph   graph
-       :context context
-       :smap    (build graph context)})))
+      {:forms         forms
+       :form-entries  ast
+       :graph         graph
+       :context       context
+       :smap          (build graph context)})))
 
 (defn pull
   [db q-form]

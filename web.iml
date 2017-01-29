@@ -16,6 +16,7 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Leiningen: args4j:2.0.26" level="project" />
+    <orderEntry type="library" name="Leiningen: aysylu/loom:0.5.4" level="project" />
     <orderEntry type="library" name="Leiningen: clj-stacktrace:0.2.8" level="project" />
     <orderEntry type="library" name="Leiningen: clj-time:0.12.0" level="project" />
     <orderEntry type="library" name="Leiningen: clj-tuple:0.2.2" level="project" />
@@ -38,6 +39,7 @@
     <orderEntry type="library" name="Leiningen: commons-io:2.5" level="project" />
     <orderEntry type="library" name="Leiningen: crypto-equality:1.0.0" level="project" />
     <orderEntry type="library" name="Leiningen: crypto-random:1.2.0" level="project" />
+    <orderEntry type="library" name="Leiningen: dorothy:0.0.6" level="project" />
     <orderEntry type="library" name="Leiningen: hiccup:1.0.5" level="project" />
     <orderEntry type="library" name="Leiningen: inflections:0.9.5" level="project" />
     <orderEntry type="library" name="Leiningen: javax.servlet/javax.servlet-api:3.1.0" level="project" />
@@ -89,6 +91,7 @@
     <orderEntry type="library" name="Leiningen: ring/ring-servlet:1.5.0" level="project" />
     <orderEntry type="library" name="Leiningen: ring:1.5.0" level="project" />
     <orderEntry type="library" name="Leiningen: stasis:2.3.0" level="project" />
+    <orderEntry type="library" name="Leiningen: ubergraph:0.3.0" level="project" />
     <orderEntry type="library" name="Leiningen: watchtower:0.1.1" level="project" />
   </component>
 </module>
