@@ -68,13 +68,11 @@
 (defn pull-record? [x] (instance? PullForm x))
 
 (def analyze-xf
-  (comp (map (juxt (comp path->ks first) second))
-        (map (juxt first (partial apply analyze pull?)))
+  (comp (map (juxt first (comp (partial apply analyze pull?)
+                               (juxt (comp path->ks first) second))))
         (map (fn [[path entries]]
-               (println path entries)
-               (eduction (map (fn [[ks sub-form]]
-                                (map->PullForm
-                                  {:form sub-form :file path :ks ks})))
+               (eduction (map (fn [[ks pull-form]]
+                                (map->PullForm {:form pull-form :file path :ks ks})))
                          entries)))))
 
 (defn analyze-forms
@@ -128,7 +126,7 @@
         context (reduce add-context {} forms)]
     (atom
       {:forms         forms
-       :form-entries  ast
+       :ast           ast
        :graph         graph
        :context       context
        :smap          (build graph context)})))
