@@ -117,18 +117,46 @@
           {}
           (reverse (alg/topsort graph))))
 
+(defn rebuild-ast
+  [{:keys [forms] :as new-state}]
+  (println "rebuilding ast.")
+  (assoc new-state
+    :ast     (analyze-forms forms)
+    :context (reduce add-context {} forms)))
+
+(defn rebuild-graph
+  [old-state {:keys [ast] :as new-state}]
+  (if (= ast (:ast old-state))
+    new-state
+    (do
+      (println "rebuilding graph.")
+      (assoc new-state :graph (compile-graph (uber/digraph) ast)))))
+
+(defn rebuild-smap
+  [{:keys [context graph] :as state}]
+  (assoc state :smap (build graph context)))
+
+(defn db-watcher
+  [key ref old-state new-state]
+  (when (not= (:forms new-state) (:forms old-state))
+    (println "rebuilding...")
+    (reset! ref
+            (->> new-state
+                 (rebuild-ast)
+                 (rebuild-graph old-state)
+                 (rebuild-smap)))))
+
+(defn watch-db
+  [db]
+  (add-watch db :file-watcher db-watcher)
+  db)
+
 (defn file-db
   [& configs]
-  (let [forms   (read-forms configs)
-        ast     (analyze-forms forms)
-        graph   (compile-graph (uber/digraph) ast)
-        context (reduce add-context {} forms)]
-    (atom
-      {:forms         forms
-       :ast           ast
-       :graph         graph
-       :context       context
-       :smap          (build graph context)})))
+  (let [forms (read-forms configs)
+        db    (watch-db (atom {}))]
+    (reset! db {:forms forms})
+    db))
 
 (defn pull
   [db q-form]
