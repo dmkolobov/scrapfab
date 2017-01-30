@@ -3,7 +3,9 @@
             [clojure.walk :as walk]
             [ubergraph.core :as uber]
             [ubergraph.alg :as alg]
-            [stasis.core :refer [slurp-directory]]))
+            [stasis.core :refer [slurp-directory]]
+
+            [clojure-watch.core :refer [start-watch]]))
 
 (defn drop-ext
   "Given a path, retur"
@@ -27,9 +29,44 @@
   (eduction (map (juxt first (comp render second)))
             (slurp-directory path (re-pattern (str "\\." ext)))))
 
-(defn read-forms
-  [configs]
-  (transduce (map form-seq) (completing into) [] configs))
+;; ---------- WATCHING -----------
+
+(defn watch-reducer
+  ([]
+   [])
+  ([specs]
+   (start-watch
+     (reduce (fn [specs [path spec-group]]
+               (conj specs
+                     {:path        path
+                      :event-types [:create :modify :delete]
+                      :bootstrap   (apply juxt (map :bootstrap spec-group))
+                      :callback    (apply juxt (map :callback spec-group))
+                      :options     {:recursive true}}))
+             []
+             (group-by :path specs))))
+  ([specs spec]
+   (conj specs spec)))
+
+(defn config->watcher
+  [state {:keys [path ext] :as config}]
+  (let [pattern (re-pattern (str ".*\\." ext))]
+    (println "watching files at" path "with extension" ext)
+    {:path        path
+     :event-types [:create :modify :delete]
+     :bootstrap   (fn [_]
+                    (swap! state update :forms into (form-seq config)))
+     :callback    (fn [event path]
+                    (if (re-matches pattern path)
+                      (println (str "file-watch:("ext")") event path)
+                      (println path "doesn't match" pattern)))
+     :options     {:recursive true}}))
+
+(defn watch-forms!
+  [state configs]
+  (transduce (map (partial config->watcher state))
+             watch-reducer
+             configs))
 
 ;; ---------- ANALISYS ------------
 
@@ -68,8 +105,8 @@
 (defn require-record? [x] (instance? RequireForm x))
 
 (def analyze-xf
-  (comp (map (juxt first (comp (partial apply analyze require?)
-                               (juxt (comp path->ks first) second))))
+  (comp (map (fn [[path form]]
+               [path (analyze require? (path->ks path) form)]))
         (map (fn [[path entries]]
                (eduction (map (fn [[ks require-form]]
                                 (map->RequireForm {:form require-form :file path :ks ks})))
@@ -153,9 +190,8 @@
 
 (defn file-db
   [& configs]
-  (let [forms (read-forms configs)
-        db    (watch-db (atom {}))]
-    (reset! db {:forms forms})
+  (let [db (watch-db (atom {:forms {}}))]
+    (watch-forms! db configs)
     db))
 
 (defn pull

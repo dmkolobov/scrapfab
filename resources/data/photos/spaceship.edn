@@ -1,2 +1,2 @@
-{:src          "/img/see_saw.jpg"
+{:src          "/img/space_ship.jpg"
  :photographer (require :photographers :sam)}

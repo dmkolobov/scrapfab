@@ -15,6 +15,7 @@
                  [ring "1.5.0"]
                  [optimus "0.19.1"]
                  [ubergraph "0.3.0"]
+                 [clojure-watch "LATEST"]
 
                  [hiccup "1.0.5"]
                  [markdown-clj "0.9.91"]]
