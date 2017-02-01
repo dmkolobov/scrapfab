@@ -17,6 +17,8 @@
                  [ubergraph "0.3.0"]
                  [clojure-watch "LATEST"]
 
+                 [org.clojure/math.combinatorics "0.1.4"]
+
                  [hiccup "1.0.5"]
                  [markdown-clj "0.9.91"]]
   :plugins [[lein-ring "0.10.0"]
