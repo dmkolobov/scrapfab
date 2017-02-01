@@ -13,6 +13,10 @@
   [path]
   (map keyword (rest (string/split (drop-ext path) #"/"))))
 
+(defn relative-path
+  [root path]
+  (string/replace path (re-pattern root) ""))
+
 ;; ------------------- analysis ----------------------
 
 (defn branch?
@@ -46,28 +50,31 @@
          (eduction (map #(vector ks %)) (collect-forms pred form)))))
 
 (defn analyze-file
-  [path]
+  [root path]
   (let [form (edn/read-string (slurp path))]
     {:path  path
      :form  form
      :nodes (into #{}
                   (map (fn [[ks require-form]]
                          {:form require-form :ks ks :path path}))
-                  (analyze-form require? (path->ks path) form))}))
+                  (analyze-form require?
+                                (path->ks (relative-path root path))
+                                form))}))
 
-(def analyze-xf
+(defn analyze-xf
+  [root-path]
   (map (fn [[event path]]
          (if (= event :delete)
            [event path]
-           [event (analyze-file path)]))))
+           [event (analyze-file root-path path)]))))
+
+;; ------------------- compilation ----------------------
 
 (defn direct-ancestor?
   [[node x]]
   (let [ks (rest (:form x))
         ct (count ks)]
     (= ks (take ct (:ks node)))))
-
-;; ------------------- compilation ----------------------
 
 (defn add-file
   [state {:keys [path form nodes]}]
@@ -101,7 +108,7 @@
 (defn compile-directory
   [path]
   (let [state  (atom {:graph (uber/digraph) :forms {}})
-        events (async/chan 1 analyze-xf)]
+        events (async/chan 1 (analyze-xf path))]
     (async/go-loop []
       (let [[event & args] (async/<! events)]
         (swap! state
