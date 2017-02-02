@@ -3,7 +3,9 @@
             [web.data-store.utils :refer [filter-nodes collect-forms stitch-nodes restitch-nodes]]
             [clojure.tools.reader.edn :as edn]
             [ubergraph.core :as uber]
-            [clojure.string :as string]))
+            [clojure.string :as string]
+            [clojure.java.io :as io]
+            [web.data-store.watches :as w]))
 
 (defn drop-ext
   [path]
@@ -110,15 +112,39 @@
    :modify mod-file
    :remove rm-file})
 
-(defn compile-directory
+;; ------------------- file watching ----------------------
+
+(defn file?
   [path]
+  (let [f (io/as-file path)]
+    (not (.isDirectory f))))
+
+(defn analysis-chan
+  [path]
+  (async/chan 1 (comp (filter (comp file? second))
+                      (analyze-xf path))))
+
+(defn watch-files!
+  [{:keys [source-paths]}]
+  (let [events-chan (async/chan)
+        mix         (async/mix events-chan)]
+    (w/start-watch
+      (map (fn [src-path]
+             (let [ana-chan (analysis-chan src-path)
+                   watch    (w/watch-spec ana-chan src-path)]
+               (async/admix mix ana-chan)
+               watch))
+           source-paths))
+    events-chan))
+
+(defn run-compiler!
+  [config]
   (let [state  (atom {:graph (uber/digraph) :forms {}})
-        events (async/chan 1 (analyze-xf path))]
+        events (watch-files! config)]
     (async/go-loop []
       (let [[event & args] (async/<! events)]
         (swap! state
                (fn [state-value]
                  (apply (get event-fns event) state-value args)))
         (recur)))
-    [state events]))
-
+    state))

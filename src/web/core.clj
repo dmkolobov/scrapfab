@@ -25,14 +25,14 @@
   [[meta content]]
   (postwalk-replace {'(content) (md-to-html-string content)} meta))
 
-(def data-store
-  (file-db {:path   "resources/data"
-            :ext    "edn"
-            :render edn/read-string}
-
-           {:path   "resources/data"
-            :ext    "md"
-            :render (comp md-template with-edn-header)}))
+(def data-store "foo")
+  ;(file-db {:path   "resources/data"
+  ;          :ext    "edn"
+  ;          :render edn/read-string}
+  ;
+  ;         {:path   "resources/data"
+  ;;          :ext    "md"
+  ;          :render (comp md-template with-edn-header)}))
 
 (defn get-assets
   []
@@ -58,6 +58,6 @@
                                        :current-page (pull data-store meta))]
                    (hiccup/html (eval-template 'web.user context source))))))
 
-(def app (-> (stasis/serve-pages get-pages)
-             (optimus/wrap get-assets optimizations/all serve-live-assets-autorefresh)
-             wrap-content-type))
+;(def app (-> (stasis/serve-pages get-pages)
+;             (optimus/wrap get-assets optimizations/all serve-live-assets-autorefresh)
+;             wrap-content-type))

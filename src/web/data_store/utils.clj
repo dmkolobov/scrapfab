@@ -8,7 +8,7 @@
 (defn filter-nodes
   "Returns all nodes in graph for which 'pred' is true."
   [pred graph]
-  (eduction (filter pred) (uber/nodes graph)))
+  (into #{} (filter pred) (uber/nodes graph)))
 
 (defn stitch-nodes
   "Returns a new graph with 'nodes' added. The graph also includes any
