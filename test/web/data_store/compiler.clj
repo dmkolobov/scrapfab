@@ -27,9 +27,23 @@
   [pred form]
   (filter pred (tree-seq #(branch? pred %) seq form)))
 
-(defn require?
-  [x]
-  (and (sequential? x) (= 'require (first x))))
+(defn form-type
+  [form]
+  (when (sequential? form)
+    (condp = (first form)
+      'require :require-form
+      'content :content-form
+      nil)))
+
+(defmulti form->node (fn [x _ _] (form-type x)))
+
+(defmethod form->node :require-form
+  [form path ks]
+  {:path path :ks ks :form form})
+
+(defmethod form->node :content-form
+  [[_ content-type] path ks]
+  {:path path :ks ks :content-type content-type})
 
 (defn analyze-form
   ([pred form]
@@ -51,15 +65,13 @@
 
 (defn analyze-file
   [root path]
-  (let [form (edn/read-string (slurp path))]
+  (let [root-ks (path->ks (relative-path root path))
+        form    (edn/read-string (slurp path))]
     {:path  path
      :form  form
      :nodes (into #{}
-                  (map (fn [[ks require-form]]
-                         {:form require-form :ks ks :path path}))
-                  (analyze-form require?
-                                (path->ks (relative-path root path))
-                                form))}))
+                  (map (fn [[ks form]] (form->node form path ks)))
+                  (analyze-form form-type root-ks form))}))
 
 (defn analyze-xf
   [root-path]
@@ -72,9 +84,10 @@
 
 (defn direct-ancestor?
   [[node x]]
-  (let [ks (rest (:form x))
-        ct (count ks)]
-    (= ks (take ct (:ks node)))))
+  (when (contains? x :form)
+    (let [ks (rest (:form x))
+          ct (count ks)]
+      (= ks (take ct (:ks node))))))
 
 (defn add-file
   [state {:keys [path form nodes]}]
