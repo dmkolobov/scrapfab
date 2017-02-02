@@ -1,6 +1,6 @@
 (ns web.data-store.compiler
   (:require [clojure.core.async :as async]
-            [web.data-store.utils :refer [filter-nodes stitch-nodes restitch-nodes]]
+            [web.data-store.utils :refer [filter-nodes collect-forms stitch-nodes restitch-nodes]]
             [clojure.tools.reader.edn :as edn]
             [ubergraph.core :as uber]
             [clojure.string :as string]))
@@ -18,14 +18,6 @@
   (string/replace path (re-pattern root) ""))
 
 ;; ------------------- analysis ----------------------
-
-(defn branch?
-  [pred x]
-  (and (not (pred x)) (coll? x)))
-
-(defn collect-forms
-  [pred form]
-  (filter pred (tree-seq #(branch? pred %) seq form)))
 
 (defn form-type
   [form]

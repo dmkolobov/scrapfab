@@ -28,3 +28,12 @@
   (-> graph
       (uber/remove-nodes* (set/difference old-nodes new-nodes))
       (stitch-nodes valid-edge? (set/difference new-nodes old-nodes))))
+
+(defn collect-forms
+  "Returns a sequence of [ks sub-form] tuples where the value (get-in form ks)
+  contains the sub-form, and pred is true for sub-form."
+  [pred form]
+  (filter pred
+          (tree-seq #(and (not (pred %)) (coll? %))
+                    seq
+                    form)))
