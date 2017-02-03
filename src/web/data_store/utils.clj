@@ -5,6 +5,8 @@
 
 (def mirror-xf (mapcat (juxt identity reverse)))
 
+;; ------------------- graph functions -------------------
+
 (defn filter-nodes
   "Returns all nodes in graph for which 'pred' is true."
   [pred graph]
@@ -29,6 +31,8 @@
       (uber/remove-nodes* (set/difference old-nodes new-nodes))
       (stitch-nodes valid-edge? (set/difference new-nodes old-nodes))))
 
+;; ------------------- collection functions -------------------
+
 (defn collect-forms
   "Returns a sequence of [ks sub-form] tuples where the value (get-in form ks)
   contains the sub-form, and pred is true for sub-form."
@@ -37,3 +41,5 @@
           (tree-seq #(and (not (pred %)) (coll? %))
                     seq
                     form)))
+
+;; -----------

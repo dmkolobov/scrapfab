@@ -5,7 +5,8 @@
             [ubergraph.core :as uber]
             [clojure.string :as string]
             [clojure.java.io :as io]
-            [web.data-store.watches :as w]))
+            [web.data-store.watches :as w]
+            [web.data-store.forms :refer [form-type require? form->node]]))
 
 (defn drop-ext
   [path]
@@ -20,24 +21,6 @@
   (string/replace path (re-pattern root) ""))
 
 ;; ------------------- analysis ----------------------
-
-(defn form-type
-  [form]
-  (when (sequential? form)
-    (condp = (first form)
-      'require :require-form
-      'content :content-form
-      nil)))
-
-(defmulti form->node (fn [x _ _] (form-type x)))
-
-(defmethod form->node :require-form
-  [form path ks]
-  {:path path :ks ks :form form})
-
-(defmethod form->node :content-form
-  [[_ content-type] path ks]
-  {:path path :ks ks :content-type content-type})
 
 (defn analyze-form
   ([pred form]
@@ -78,10 +61,10 @@
 
 (defn direct-ancestor?
   [[node x]]
-  (when (contains? x :form)
-    (let [ks (rest (:form x))
-          ct (count ks)]
-      (= ks (take ct (:ks node))))))
+  (when (require? x)
+    (let [{:keys [req-ks]} x
+          ct     (count req-ks)]
+      (= req-ks (take ct (:ks node))))))
 
 (defn add-file
   [state {:keys [path form nodes]}]
