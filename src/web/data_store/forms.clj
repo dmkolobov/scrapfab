@@ -21,16 +21,21 @@
 
 (defmulti form->node (fn [x _] (form-type x)))
 
+(defrecord RequireForm [ks form req-ks])
+(defrecord ContentForm [ks form content-type])
+
 (defmethod form->node :require-form
   [[_ & req-ks :as form] ks]
-  {:ks     ks
-   :form   form
-   :req-ks req-ks})
+  (map->RequireForm
+    {:ks     ks
+     :form   form
+     :req-ks req-ks}))
 
 (defmethod form->node :content-form
   [[_ content-type :as form] ks]
-  {:ks           ks
-   :form         form
-   :content-type content-type})
+  (map->ContentForm
+   {:ks           ks
+    :form         form
+    :content-type content-type}))
 
-(defn require? [x] (contains? x :req-ks))
+(defn require? [x] (instance? RequireForm x))

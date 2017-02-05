@@ -152,30 +152,25 @@
 
 ;; ---- EXECUTION ----------------------------------------------------
 
-(defn create-context
-  [forms]
-  (reduce (fn [context [path form]]
-            (assoc-in context
-                      (path->ks path)
-                      form))
-          {}
-          forms))
+(defn context-reduction
+  [context [path form]]
+  (assoc-in context (path->ks path) form))
 
 (defn build-smap
   [ctx graph]
-    (reduce (fn [smap {:keys [ks form req-ks content-type]}]
-              (assoc smap
-                form (cond req-ks
-                           (walk/postwalk-replace smap
-                                                  (get-in ctx req-ks))
-                           content-type
-                           "DEBUG CONTENT")))
-            {}
-            (alg/topsort graph)))
+  (reduce (fn [smap node]
+            (assoc smap
+              (:form node)
+              (if (require? node)
+                (walk/postwalk-replace smap
+                                       (get-in ctx (:req-ks node)))
+                (str "DEBUG CONTENT:" (:content-type node)))))
+          {}
+          (alg/topsort graph)))
 
 (defn expand
   [db]
   (let [{:keys [forms graph]} @db
-        ctx  (create-context forms)
+        ctx  (reduce context-reduction {} forms)
         smap (build-smap ctx graph)]
     (walk/postwalk-replace smap ctx)))
