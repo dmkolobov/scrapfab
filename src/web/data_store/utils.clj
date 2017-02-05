@@ -7,11 +7,6 @@
 
 ;; ------------------- graph functions -------------------
 
-(defn filter-nodes
-  "Returns all nodes in graph for which 'pred' is true."
-  [pred graph]
-  (into #{} (filter pred) (uber/nodes graph)))
-
 (defn stitch-nodes
   "Returns a new graph with 'nodes' added. The graph also includes any
    possible edges between existing nodes and the new nodes for which 'valid-edge?'

@@ -22,15 +22,17 @@
 (defmulti form->node (fn [x _ _] (form-type x)))
 
 (defmethod form->node :require-form
-  [[_ & req-ks] path ks]
+  [[_ & req-ks :as form] path ks]
   {:path   path
    :ks     ks
+   :form   form
    :req-ks req-ks})
 
 (defmethod form->node :content-form
-  [[_ content-type] path ks]
+  [[_ content-type :as form] path ks]
   {:path         path
    :ks           ks
+   :form         form
    :content-type content-type})
 
 (defn require? [x] (contains? x :req-ks))

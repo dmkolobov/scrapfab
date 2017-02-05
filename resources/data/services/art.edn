@@ -1,1 +1,2 @@
-{:featured-art (require :art :fire_pit)}
+{:all-art      (require :art)
+ :featured-art (require :art :fire_pit)}
