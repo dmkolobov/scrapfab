@@ -3,7 +3,3 @@
  :description    (content :md)}
 
 Sculpted sheet metal goat head on top of a pentagram base.
-
-* foo
-* bar
-* car!!

@@ -1,2 +1,7 @@
-{:all-art      (require :art)
- :featured-art (require :art :fire_pit)}
+{:title         "Art Fabrication"
+ :featured-work (require :work :art :fire_pit)
+ :all-work      (require :work :art)
+ :description   (content :md)}
+
+We create art from trash. Many of our pieces are unique, but we have
+a selection of works which we fabricate on demand.
