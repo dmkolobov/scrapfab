@@ -19,19 +19,17 @@
 ;; the functions below are responsible for converting EDN data structures
 ;; to graph nodes.
 
-(defmulti form->node (fn [x _ _] (form-type x)))
+(defmulti form->node (fn [x _] (form-type x)))
 
 (defmethod form->node :require-form
-  [[_ & req-ks :as form] path ks]
-  {:path   path
-   :ks     ks
+  [[_ & req-ks :as form] ks]
+  {:ks     ks
    :form   form
    :req-ks req-ks})
 
 (defmethod form->node :content-form
-  [[_ content-type :as form] path ks]
-  {:path         path
-   :ks           ks
+  [[_ content-type :as form] ks]
+  {:ks           ks
    :form         form
    :content-type content-type})
 

@@ -44,8 +44,8 @@
          (eduction (map #(vector ks %)) (collect-forms pred form)))))
 
 (defn analyze-form
-  [path ks form]
-  (eduction (map (fn [[ks form]] (form->node form path ks)))
+  [ks form]
+  (eduction (map (fn [[ks form]] (form->node form ks)))
             (filter-ks-walk form-type ks form)))
 
 (defn analyze-file
@@ -60,7 +60,9 @@
     {:path     path
      :rel-path rel-path
      :form     form
-     :nodes    (into #{} (analyze-form path root-ks form))}))
+     :nodes    (into #{}
+                     (map (fn [ast] (merge ast {:path path})))
+                     (analyze-form root-ks form))}))
 
 (defn analyze-xf
   "Returns a transformer replaces [event path] tuples with [event ast] ."
