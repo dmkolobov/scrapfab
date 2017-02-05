@@ -174,3 +174,14 @@
         ctx  (reduce context-reduction {} forms)
         smap (build-smap ctx graph)]
     (walk/postwalk-replace smap ctx)))
+
+(defn query
+  [db qform]
+  (let [{:keys [forms graph]} @db
+        nodes  (into #{} (analyze-form [] qform))
+        qgraph (stitch-nodes graph direct-ancestor? nodes)
+        qctx   (reduce context-reduction
+                       {}
+                       (conj forms ["_query_" qform]))
+        qsmap  (build-smap qctx qgraph)]
+    (walk/postwalk-replace qsmap qform)))
