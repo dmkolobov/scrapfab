@@ -6,9 +6,10 @@
             [clojure.string :as string]
             [clojure.java.io :as io]
             [web.data-store.watches :as w]
-            [web.data-store.forms :refer [form-type require? form->node]]
+            [web.data-store.forms :refer [form-type require? content? form->node]]
             [ubergraph.alg :as alg]
             [clojure.walk :as walk]
+            [clojure.tools.reader.reader-types :refer [string-push-back-reader read-char]]
             [clojure.pprint :refer [pprint]]))
 
 (defn drop-ext
@@ -48,18 +49,28 @@
   (eduction (map (fn [[ks form]] (form->node form ks)))
             (filter-ks-walk form-type ks form)))
 
+(defn with-edn-header
+  [source]
+  (let [reader (string-push-back-reader source)
+        meta   (edn/read reader)]
+    (loop [c (read-char reader) s (StringBuilder.)]
+      (if (some? c)
+        (recur (read-char reader) (.append s c))
+        [meta (str s)]))))
+
 (defn analyze-file
   "Given a root directory and a path to a file, read it's EDN header
   and find any special forms. The EDN structure will reside at the key
   sequence defined by the application of 'path->ks' to 'path', relative
   to 'root'."
   [root path]
-  (let [rel-path (relative-path root path)
-        root-ks  (path->ks rel-path)
-        form     (edn/read-string (slurp path))]
+  (let [rel-path       (relative-path root path)
+        root-ks        (path->ks rel-path)
+        [form content] (with-edn-header (slurp path))]
     {:path     path
      :rel-path rel-path
      :form     form
+     :content  content
      :nodes    (into #{}
                      (map (fn [ast] (merge ast {:path path})))
                      (analyze-form root-ks form))}))
@@ -88,25 +99,28 @@
       (= req-ks (take ct (:ks node))))))
 
 (defn add-file
-  [db {:keys [path rel-path form nodes]}]
+  [db {:keys [path rel-path form nodes content]}]
   (-> db
       (update :forms assoc rel-path form)
       (update :nodes assoc path nodes)
+      (update :contents assoc path content)
       (update :graph stitch-nodes direct-ancestor? nodes)))
 
 (defn mod-file
-  [db {:keys [path rel-path form nodes]}]
+  [db {:keys [path rel-path form nodes content]}]
   (let [old-nodes (get-in db [:nodes path])]
     (-> db
         (update :forms assoc rel-path form)
         (update :nodes assoc path nodes)
+        (update :contents assoc path content)
         (update :graph restitch-nodes direct-ancestor? old-nodes nodes))))
 
 (defn rm-file
-  [{:keys [graph forms nodes]} path]
-  {:graph (uber/remove-nodes* graph (get nodes path))
-   :forms (dissoc forms path)
-   :nodes (dissoc nodes path)})
+  [{:keys [graph forms nodes contents]} path]
+  {:graph    (uber/remove-nodes* graph (get nodes path))
+   :forms    (dissoc forms path)
+   :nodes    (dissoc nodes path)
+   :contents (dissoc contents path)})
 
 (def event-fns
   {:create add-file
@@ -139,8 +153,12 @@
     events-chan))
 
 (defn run-compiler!
-  [config]
-  (let [db     (atom {:graph (uber/digraph) :forms {}})
+  [{:keys [content-types] :as config}]
+  (let [db     (atom {:graph         (uber/digraph)
+                      :forms         {}
+                      :nodes         {}
+                      :contents      {}
+                      :content-types content-types})
         events (watch-files! config)]
     (async/go-loop []
       (let [[event & args] (async/<! events)]
@@ -157,31 +175,34 @@
   (assoc-in context (path->ks path) form))
 
 (defn build-smap
-  [ctx graph]
+  [ctx content-types contents graph]
   (reduce (fn [smap node]
             (assoc smap
               (:form node)
-              (if (require? node)
-                (walk/postwalk-replace smap
-                                       (get-in ctx (:req-ks node)))
-                (str "DEBUG CONTENT:" (:content-type node)))))
+              (cond (require? node)
+                    (walk/postwalk-replace smap (get-in ctx (:req-ks node)))
+
+                    (content? node)
+                    (let [render (get content-types (:content-type node))
+                          source (get contents (:path node))]
+                      (render source)))))
           {}
           (alg/topsort graph)))
 
 (defn expand
   [db]
-  (let [{:keys [forms graph]} @db
+  (let [{:keys [forms contents content-types graph]} @db
         ctx  (reduce context-reduction {} forms)
-        smap (build-smap ctx graph)]
+        smap (build-smap ctx content-types contents graph)]
     (walk/postwalk-replace smap ctx)))
 
 (defn query
   [db qform]
-  (let [{:keys [forms graph]} @db
+  (let [{:keys [forms contents content-types graph]} @db
         nodes  (into #{} (analyze-form [] qform))
         qgraph (stitch-nodes graph direct-ancestor? nodes)
         qctx   (reduce context-reduction
                        {}
                        (conj forms ["_query_" qform]))
-        qsmap  (build-smap qctx qgraph)]
+        qsmap  (build-smap qctx content-types contents qgraph)]
     (walk/postwalk-replace qsmap qform)))

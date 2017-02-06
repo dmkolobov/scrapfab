@@ -39,3 +39,4 @@
     :content-type content-type}))
 
 (defn require? [x] (instance? RequireForm x))
+(defn content? [x] (instance? ContentForm x))

@@ -14,6 +14,12 @@
    [:div.pure-u-1-3.pure-u-md-1-1.scrap-logo "scrap"]
    [:div.pure-u-2-3.pure-u-md-1-1.fab-logo "fab"]])
 
+(defn fab-service-page
+  [context]
+  [:div
+   [:h1 "Fab Service"]
+   [:pre pp (:current-page context)]])
+
 (defn base-layout
   [& {:keys [body]}]
   [:html
