@@ -16,13 +16,28 @@
       'content :content-form
       nil)))
 
-;; the functions below are responsible for converting EDN data structures
-;; to graph nodes.
+;; ----- NODES -----------------
+;; -------------------------------------------
+
+(defprotocol IAstNode
+  (emit [_ db ctx]))
+
+(defrecord RequireForm [ks form req-ks]
+  IAstNode
+  (emit [_ db ctx]
+    (get-in ctx req-ks)))
+
+(defrecord ContentForm [ks form content-type]
+  IAstNode
+  (emit [this {:keys [sources content-types]} ctx]
+    (let [render (get content-types content-type)
+          source (get sources (:path this))]
+      (render source))))
+
+;; ----- PARSING ---------------
+;; -------------------------------------------
 
 (defmulti form->node (fn [x _] (form-type x)))
-
-(defrecord RequireForm [ks form req-ks])
-(defrecord ContentForm [ks form content-type])
 
 (defmethod form->node :require-form
   [[_ & req-ks :as form] ks]
