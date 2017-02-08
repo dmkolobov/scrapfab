@@ -6,7 +6,7 @@
             [clojure.string :as string]
             [clojure.java.io :as io]
             [web.data-store.watches :as w]
-            [web.data-store.forms :refer [form-type emit require? content? form->node]]
+            [web.data-store.forms :refer [form-type valid-edge? emit require? form->node]]
             [ubergraph.alg :as alg]
             [clojure.walk :as walk]
             [clojure.tools.reader.reader-types :refer [string-push-back-reader read-char]]
@@ -91,20 +91,13 @@
 ;; as well as keeping track of dependencies introduced
 ;; by '(require :some :ks :to :data)' forms in the EDN forms.
 
-(defn direct-ancestor?
-  [[node x]]
-  (when (require? x)
-    (let [{:keys [req-ks]} x
-          ct     (count req-ks)]
-      (= req-ks (take ct (:ks node))))))
-
 (defn add-file
   [db {:keys [path rel-path form nodes content]}]
   (-> db
       (update :forms assoc rel-path form)
       (update :nodes assoc path nodes)
       (update :sources assoc path content)
-      (update :graph stitch-nodes direct-ancestor? nodes)))
+      (update :graph stitch-nodes valid-edge? nodes)))
 
 (defn mod-file
   [db {:keys [path rel-path form nodes content]}]
@@ -113,7 +106,7 @@
         (update :forms assoc rel-path form)
         (update :nodes assoc path nodes)
         (update :sources assoc path content)
-        (update :graph restitch-nodes direct-ancestor? old-nodes nodes))))
+        (update :graph restitch-nodes valid-edge? old-nodes nodes))))
 
 (defn rm-file
   [{:keys [graph forms nodes sources]} path]

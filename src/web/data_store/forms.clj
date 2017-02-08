@@ -53,5 +53,24 @@
     :form         form
     :content-type content-type}))
 
+(defn depends-on?
+  [require x]
+  (let [{:keys [req-ks]} require]
+    (= req-ks
+       (take (count req-ks) (:ks x)))))
+
+(defmulti valid-edge? (fn [[x y]] [(type x) (type y)]))
+
+(defmethod valid-edge? [ContentForm RequireForm]
+  [[content require]]
+  (depends-on? require content))
+
+(defmethod valid-edge? [RequireForm RequireForm]
+  [[require-a require-b]]
+  (depends-on? require-b require-a))
+
+(defmethod valid-edge? :default
+  [[_ _]]
+  false)
+
 (defn require? [x] (instance? RequireForm x))
-(defn content? [x] (instance? ContentForm x))
