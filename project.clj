@@ -17,6 +17,8 @@
                  [ubergraph "0.3.0"]
                  [clojure-watch "LATEST"]
 
+                 [criterium "0.4.4"]
+
                  [org.clojure/math.combinatorics "0.1.4"]
 
                  [hiccup "1.0.5"]

@@ -109,11 +109,12 @@
         (update :graph restitch-nodes valid-edge? old-nodes nodes))))
 
 (defn rm-file
-  [{:keys [graph forms nodes sources]} path]
-  {:graph    (uber/remove-nodes* graph (get nodes path))
-   :forms    (dissoc forms path)
-   :nodes    (dissoc nodes path)
-   :sources  (dissoc sources path)})
+  [{:keys [nodes] :as db} path]
+  (-> db
+      (update :graph uber/remove-nodes* (get nodes path))
+      (update :forms dissoc path)
+      (update :nodes dissoc path)
+      (update :sources dissoc path)))
 
 (def event-fns
   {:create add-file
