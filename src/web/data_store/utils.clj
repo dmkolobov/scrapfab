@@ -12,7 +12,6 @@
    possible edges between existing nodes and the new nodes for which 'valid-edge?'
    is true."
   [graph valid-edge? nodes]
-  (println "stitching" nodes)
   (uber/add-edges* (uber/add-nodes* graph nodes)
                    (into []
                          (comp mirror-xf (filter valid-edge?))

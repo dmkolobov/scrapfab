@@ -191,3 +191,27 @@
 (defn expand
   [db]
   (evaluate @db))
+
+(defn reachable
+  [graph nodes]
+  (let [graph' (uber/transpose graph)]
+    (reduce (fn [node-set node]
+              (into node-set (alg/post-traverse graph' node)))
+            #{}
+            nodes)))
+
+(defn eval-order
+  [graph nodes]
+  (keep (reachable graph nodes) (alg/topsort graph)))
+
+(defn query
+  [db q-form]
+  (let [{:keys [graph forms] :as state} @db
+        q-nodes    (into #{} (analyze-form [:__query] q-form))
+        q-graph    (stitch-nodes graph valid-edge? q-nodes)
+        order      (eval-order q-graph q-nodes)]
+    (get (evaluate (assoc state
+                     :graph q-graph
+                     :forms (assoc forms "/__query" q-form))
+                   order)
+         :__query)))
