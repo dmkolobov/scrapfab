@@ -168,30 +168,9 @@
   [context [path form]]
   (assoc-in context (path->ks path) form))
 
-(defn replace-node
-  [ctx node val]
-  (update-in ctx
-             (:ks node)
-             (fn [ctx-val]
-               (walk/postwalk-replace {(:form node) val} ctx-val))))
-
 (defn evaluate
-
-  ([{:keys [graph] :as db}]
-   (evaluate db (alg/topsort graph)))
-
-  ([{:keys [forms] :as db} order]
-   (evaluate db (reduce fs-context {} forms) order))
-
-  ([db ctx order]
-   (reduce (fn [ctx node]
-             (replace-node ctx node (emit node db ctx)))
-           ctx
-           order)))
-
-(defn expand
-  [db]
-  (evaluate @db))
+  [db ctx order]
+  (reduce #(emit %2 db %1) ctx order))
 
 (defn reachable
   [graph nodes]
@@ -200,6 +179,10 @@
               (into node-set (alg/post-traverse graph' node)))
             #{}
             nodes)))
+
+(defn eval-ctx
+  [forms]
+  (reduce fs-context {} forms))
 
 (defn eval-order
   [graph nodes]
@@ -210,9 +193,10 @@
   (let [{:keys [graph forms] :as state} @db
         q-nodes    (into #{} (analyze-form [:__query] q-form))
         q-graph    (stitch-nodes graph valid-edge? q-nodes)
+        q-forms    (assoc forms "/__query" q-form)
+        ctx        (eval-ctx q-forms)
         order      (eval-order q-graph q-nodes)]
-    (get (evaluate (assoc state
-                     :graph q-graph
-                     :forms (assoc forms "/__query" q-form))
+    (get (evaluate (assoc state :graph q-graph :forms q-forms)
+                   ctx
                    order)
          :__query)))

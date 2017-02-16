@@ -1,4 +1,5 @@
-(ns web.data-store.forms)
+(ns web.data-store.forms
+  (:require [clojure.walk :as walk]))
 
 ;; how do we make this function extensible?
 
@@ -20,16 +21,26 @@
 ;; -------------------------------------------
 
 (defprotocol IAstNode
-  (emit [_ db ctx]))
+  (emit- [_ db ctx]))
+
+(defn emit
+  "Given a node, the compiler db, and a ctx, return a new ctx with all
+  instances of the node form replace with the node value."
+  [{:keys [ks form] :as node} db ctx]
+  (let [node-val (emit- node db ctx)]
+    (update-in ctx
+               ks
+               (fn [ctx-val]
+                 (walk/postwalk-replace {form node-val} ctx-val)))))
 
 (defrecord RequireForm [ks form req-ks]
   IAstNode
-  (emit [_ db ctx]
+  (emit- [_ db ctx]
     (get-in ctx req-ks)))
 
 (defrecord ContentForm [ks form content-type]
   IAstNode
-  (emit [this {:keys [sources content-types]} ctx]
+  (emit- [this {:keys [sources content-types]} ctx]
     (let [render (get content-types content-type)
           source (get sources (:path this))]
       (render source))))
@@ -82,6 +93,4 @@
   [[require-a require-b]]
   (depends-on? require-b require-a))
 
-(defmethod valid-edge? :default
-  [[_ _]]
-  false)
+(defmethod valid-edge? :default [_] false)
