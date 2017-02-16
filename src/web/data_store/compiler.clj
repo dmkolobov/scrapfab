@@ -6,7 +6,7 @@
             [clojure.string :as string]
             [clojure.java.io :as io]
             [web.data-store.watches :as w]
-            [web.data-store.forms :refer [form-type valid-edge? emit require? form->node]]
+            [web.data-store.forms :refer [form-type valid-edge? emit form->node]]
             [ubergraph.alg :as alg]
             [clojure.walk :as walk]
             [clojure.tools.reader.reader-types :refer [string-push-back-reader read-char]]

@@ -59,7 +59,20 @@
     (= req-ks
        (take (count req-ks) (:ks x)))))
 
-(defmulti valid-edge? (fn [[x y]] [(type x) (type y)]))
+;; We choose to implement 'valid-edge?' as a multimethod because
+;; it forces us to exhaustivly define all possible dependencies
+;; between any two types of nodes.
+;;
+;; Since the number of nodes is likely to be small, this shouldn't
+;; be an issue. If this assumption changes, another method may become
+;; preferrable.
+
+(defmulti valid-edge?
+          (juxt (comp type first)
+                (comp type second)))
+
+;; -- default edges --------------------------------------------------
+;; -------------------------------------------------------------------
 
 (defmethod valid-edge? [ContentForm RequireForm]
   [[content require]]
@@ -72,5 +85,3 @@
 (defmethod valid-edge? :default
   [[_ _]]
   false)
-
-(defn require? [x] (instance? RequireForm x))
