@@ -53,10 +53,10 @@
   [source]
   (let [reader (string-push-back-reader source)
         meta   (edn/read reader)]
-    (loop [c (read-char reader) s (StringBuilder.)]
+    (loop [c (read-char reader) parts []]
       (if (some? c)
-        (recur (read-char reader) (.append s c))
-        [meta (str s)]))))
+        (recur (read-char reader) (conj parts c))
+        [meta (string/join parts)]))))
 
 (defn analyze-file
   "Given a root directory and a path to a file, read it's EDN header
