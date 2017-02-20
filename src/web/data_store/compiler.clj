@@ -5,8 +5,9 @@
             [ubergraph.core :as uber]
             [clojure.string :as string]
             [clojure.java.io :as io]
+            [markdown.core :as md]
             [web.data-store.watches :as w]
-            [web.data-store.forms :refer [form-type valid-edge? emit form->node]]
+            [web.data-store.forms :refer [valid-edge? render-content special-form? emit parse-form]]
             [ubergraph.alg :as alg]
             [clojure.walk :as walk]
             [clojure.tools.reader.reader-types :refer [string-push-back-reader read-char]]
@@ -26,28 +27,28 @@
 
 ;; ------------------- analysis ----------------------
 
-(defn filter-ks-walk
+(defn ks-walk
   ([pred form]
-   (filter-ks-walk pred [] form))
+   (ks-walk pred [] form))
 
   ([pred ks form]
    (cond (pred form)
-         [[ks form]]
+         [[form ks]]
 
          (map? form)
          (transduce (map (fn [[k v]]
-                           (filter-ks-walk pred (conj (vec ks) k) v)))
+                           (ks-walk pred (conj (vec ks) k) v)))
                     (completing into)
                     []
                     form)
 
          :default
-         (eduction (map #(vector ks %)) (collect-forms pred form)))))
+         (eduction (map #(vector % ks)) (collect-forms pred form)))))
 
 (defn analyze-form
   [ks form]
-  (eduction (map (fn [[ks form]] (form->node form ks)))
-            (filter-ks-walk form-type ks form)))
+  (eduction (map (partial apply parse-form))
+            (ks-walk special-form? ks form)))
 
 (defn with-edn-header
   [source]
@@ -121,6 +122,13 @@
    :modify mod-file
    :remove rm-file})
 
+;; -- default renderers ----------------------------------------------
+;; -------------------------------------------------------------------
+
+(defmethod render-content :md
+  [_ source data]
+  (md/md-to-html-string source))
+
 ;; ------------------- file watching ----------------------
 
 (defn file?
@@ -146,19 +154,21 @@
            source-paths))
     events-chan))
 
+(def clean-state
+  {:graph    (uber/digraph)
+   :forms    {}
+   :nodes    {}
+   :contents {}})
+
 (defn run-compiler!
-  [{:keys [content-types] :as config}]
-  (let [db     (atom {:graph         (uber/digraph)
-                      :forms         {}
-                      :nodes         {}
-                      :contents      {}
-                      :content-types content-types})
+  [config]
+  (let [db     (atom clean-state)
         events (watch-files! config)]
     (async/go-loop []
       (let [[event & args] (async/<! events)]
         (swap! db
-               (fn [db-value]
-                 (apply (get event-fns event) db-value args)))
+               (fn [dbv]
+                 (apply (get event-fns event) dbv args)))
         (recur)))
     db))
 

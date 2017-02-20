@@ -1,22 +1,6 @@
 (ns web.data-store.forms
   (:require [clojure.walk :as walk]))
 
-;; how do we make this function extensible?
-
-;; What is the scope of enhancements that this library brings in terms of
-;; augmenting EDN? Should we worry about much beyond providing 'require' and
-;; 'content' forms?
-
-(defn form-type
-  "Given an arbitrary sub-form from an EDN data structure, return the
-  form type if it is a compiler form, and nil otherwise."
-  [form]
-  (when (sequential? form)
-    (condp = (first form)
-      'require :require-form
-      'content :content-form
-      nil)))
-
 ;; ----- NODES -----------------
 ;; -------------------------------------------
 
@@ -33,6 +17,38 @@
                (fn [ctx-val]
                  (walk/postwalk-replace {form node-val} ctx-val)))))
 
+;; -- parsing --------------------------------------------------------
+;; -------------------------------------------------------------------
+
+(defmulti parse-form
+  "Given a form and a path to the node, return the node encoded by the form."
+  (fn [x ks] (first x)))
+
+(defn special-forms
+  "Returns the set of all dispatch values of 'parse-form'."
+  []
+  (into #{} (keys (methods parse-form))))
+
+(defn special-form?
+  "Returns true if 'form' is sequential and its first element is a registered
+  dispatch value of 'parse-form'."
+  [form]
+  (and (sequential? form)
+       (contains? (special-forms) (first form))))
+
+;; -- edges ----------------------------------------------------------
+;; -------------------------------------------------------------------
+
+(defmulti valid-edge?
+  (juxt (comp first :form first)
+        (comp first :form second)))
+
+(defmulti render-content
+  (fn [content-type source data] content-type))
+
+;; -- default edges --------------------------------------------------
+;; -------------------------------------------------------------------
+
 (defrecord RequireForm [ks form req-ks]
   IAstNode
   (emit- [_ db ctx]
@@ -40,29 +56,23 @@
 
 (defrecord ContentForm [ks form content-type]
   IAstNode
-  (emit- [this {:keys [sources content-types]} ctx]
-    (let [render (get content-types content-type)
-          source (get sources (:path this))]
-      (render source))))
+  (emit- [this {:keys [sources]} ctx]
+    (let [source (get sources (:path this))]
+      (render-content content-type source {}))))
 
-;; ----- PARSING ---------------
-;; -------------------------------------------
-
-(defmulti form->node (fn [x _] (form-type x)))
-
-(defmethod form->node :require-form
+(defmethod parse-form 'require
   [[_ & req-ks :as form] ks]
   (map->RequireForm
     {:ks     ks
      :form   form
      :req-ks req-ks}))
 
-(defmethod form->node :content-form
+(defmethod parse-form 'content
   [[_ content-type :as form] ks]
   (map->ContentForm
-   {:ks           ks
-    :form         form
-    :content-type content-type}))
+    {:ks           ks
+     :form         form
+     :content-type content-type}))
 
 (defn depends-on?
   [require x]
@@ -70,26 +80,11 @@
     (= req-ks
        (take (count req-ks) (:ks x)))))
 
-;; We choose to implement 'valid-edge?' as a multimethod because
-;; it forces us to exhaustivly define all possible dependencies
-;; between any two types of nodes.
-;;
-;; Since the number of nodes is likely to be small, this shouldn't
-;; be an issue. If this assumption changes, another method may become
-;; preferrable.
-
-(defmulti valid-edge?
-          (juxt (comp type first)
-                (comp type second)))
-
-;; -- default edges --------------------------------------------------
-;; -------------------------------------------------------------------
-
-(defmethod valid-edge? [ContentForm RequireForm]
+(defmethod valid-edge? '[content require]
   [[content require]]
   (depends-on? require content))
 
-(defmethod valid-edge? [RequireForm RequireForm]
+(defmethod valid-edge? '[require require]
   [[require-a require-b]]
   (depends-on? require-b require-a))
 
