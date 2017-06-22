@@ -55,14 +55,20 @@
 ;; -- default edges --------------------------------------------------
 ;; -------------------------------------------------------------------
 
+(defn node-ks
+  "Returns the full key sequence pointing to the node."
+  [node]
+  (into (:context node) (:ks node)))
+
 (defrecord RequireForm [ks context form req-ks]
   IAstNode
   (emit- [_ db contexts] (get-in (get contexts []) req-ks)))
 
-(defrecord ContentForm [ks context form content-type]
+(defrecord ContentForm [ks context form]
   IAstNode
   (emit- [this {:keys [sources]} contexts]
-    (let [source (get sources (:path this))]
+    (let [source           (get sources (:path this))
+          [_ content-type] form]
       (render-content content-type source {}))))
 
 (defmethod parse-form 'require
@@ -104,9 +110,8 @@
   [x y]
   (and (not= x y)
        (or (and (contains? x :req-ks)
-                (sub-seq? (:req-ks x) (into (:context y) (:ks y))))
-           (sub-seq? (into (:context x) (:ks x))
-                     (into (:context y) (:ks y))))))
+                (sub-seq? (:req-ks x) (node-ks y)))
+           (sub-seq? (node-ks x) (node-ks y)))))
 
 (defmethod valid-edge? '[content require]
   [[content require]]
