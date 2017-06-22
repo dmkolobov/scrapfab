@@ -28,27 +28,31 @@
 ;; ------------------- analysis ----------------------
 
 (defn ks-walk
-  ([pred form]
-   (ks-walk pred [] form))
-
-  ([pred ks form]
+  [pred context ks form]
    (cond (pred form)
-         [[form ks]]
+         (transduce (map-indexed (fn [idx sub-form]
+                                   (ks-walk pred
+                                            (into context ks)
+                                            [idx]
+                                            sub-form)))
+                    (completing into)
+                    [[form context ks]]
+                    form)
 
          (map? form)
-         (transduce (map (fn [[k v]]
-                           (ks-walk pred (conj (vec ks) k) v)))
+         (transduce (map (fn [[key sub-form]]
+                           (ks-walk pred context (conj (vec ks) key) sub-form)))
                     (completing into)
                     []
                     form)
 
          :default
-         (eduction (map #(vector % ks)) (collect-forms pred form)))))
+         (eduction (map #(vector % context ks)) (collect-forms pred form))))
 
 (defn analyze-form
   [ks form]
   (eduction (map (partial apply parse-form))
-            (ks-walk special-form? ks form)))
+            (ks-walk special-form? [] ks form)))
 
 (defn with-edn-header
   [source]
@@ -174,13 +178,12 @@
 
 ;; ---- EXECUTION ----------------------------------------------------
 
-(defn fs-context
-  [context [path form]]
-  (assoc-in context (path->ks path) form))
-
 (defn evaluate
-  [db ctx order]
-  (reduce #(emit %2 db %1) ctx order))
+  [db contexts order]
+  (reduce (fn [contexts node]
+            (emit node db contexts))
+          contexts
+          order))
 
 (defn reachable
   [graph nodes]
@@ -190,23 +193,47 @@
             #{}
             nodes)))
 
-(defn eval-ctx
-  [forms]
-  (reduce fs-context {} forms))
-
 (defn eval-order
   [graph nodes]
   (keep (reachable graph nodes) (alg/topsort graph)))
 
+(defn root-context
+  [contexts file-forms]
+  (assoc contexts
+    [] (reduce (fn [result [path form]]
+                 (assoc-in result (path->ks path) form))
+               {}
+               file-forms)))
+
+(defn node-contexts
+  [contexts nodes]
+  (reduce (fn [contexts {:keys [form context] :as node}]
+            (assoc contexts context (vec form)))
+          contexts
+          (filter #(not= [] (:context %)) nodes)))
+
+(defn node-contexts
+  [contexts nodes]
+  (let [nested-nodes (set
+                       (->> nodes
+                            (filter #(not= [] (:context %)))
+                            (map :context)))]
+    (reduce (fn [contexts {:keys [ks form context] :as node}]
+              (assoc contexts ks (vec form)))
+            contexts
+            (filter #(contains? nested-nodes (:ks %)) nodes))))
+
 (defn query
   [db q-form]
   (let [{:keys [graph forms] :as state} @db
-        q-nodes    (into #{} (analyze-form [:__query] q-form))
-        q-graph    (stitch-nodes graph valid-edge? q-nodes)
-        q-forms    (assoc forms "/__query" q-form)
-        ctx        (eval-ctx q-forms)
-        order      (eval-order q-graph q-nodes)]
-    (get (evaluate (assoc state :graph q-graph :forms q-forms)
-                   ctx
-                   order)
-         :__query)))
+        q-nodes (into #{} (analyze-form [:__query] q-form))
+        q-graph (stitch-nodes graph valid-edge? q-nodes)
+        q-forms (assoc forms "/__query" q-form)
+        order (eval-order q-graph q-nodes)
+        contexts (-> {}
+                     (root-context q-forms)
+                     (node-contexts order))]
+    (get-in (evaluate (assoc state :graph q-graph :forms q-forms)
+                      contexts
+                      order)
+            [[] :__query])))

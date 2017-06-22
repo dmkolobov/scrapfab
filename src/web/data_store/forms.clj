@@ -7,22 +7,29 @@
 (defprotocol IAstNode
   (emit- [_ db ctx]))
 
+(defn load-node
+  [contexts node]
+  (if-let [node-value (get contexts (:ks node))]
+    (assoc node :form node-value)
+    node))
+
 (defn emit
-  "Given a node, the compiler db, and a ctx, return a new ctx with all
-  instances of the node form replace with the node value."
-  [{:keys [ks form] :as node} db ctx]
-  (let [node-val (emit- node db ctx)]
-    (update-in ctx
-               ks
-               (fn [ctx-val]
-                 (walk/postwalk-replace {form node-val} ctx-val)))))
+  [{:keys [ks context form] :as node} db contexts]
+  (update contexts
+          context
+          (fn [result]
+            (update-in result
+                       ks
+                       (fn [result-fragment]
+                         (let [val (emit- (load-node contexts node) db contexts)]
+                           (walk/postwalk-replace {form val} result-fragment)))))))
 
 ;; -- parsing --------------------------------------------------------
 ;; -------------------------------------------------------------------
 
 (defmulti parse-form
   "Given a form and a path to the node, return the node encoded by the form."
-  (fn [x ks] (first x)))
+  (fn [x context ks] (first x)))
 
 (defn special-forms
   "Returns the set of all dispatch values of 'parse-form'."
@@ -49,36 +56,55 @@
 ;; -- default edges --------------------------------------------------
 ;; -------------------------------------------------------------------
 
-(defrecord RequireForm [ks form req-ks]
+(defrecord RequireForm [ks context form req-ks]
   IAstNode
-  (emit- [_ db ctx]
-    (get-in ctx req-ks)))
+  (emit- [_ db contexts] (get-in (get contexts []) req-ks)))
 
-(defrecord ContentForm [ks form content-type]
+(defrecord ContentForm [ks context form content-type]
   IAstNode
-  (emit- [this {:keys [sources]} ctx]
+  (emit- [this {:keys [sources]} contexts]
     (let [source (get sources (:path this))]
       (render-content content-type source {}))))
 
 (defmethod parse-form 'require
-  [[_ & req-ks :as form] ks]
+  [[_ & req-ks :as form] context ks]
   (map->RequireForm
-    {:ks     ks
-     :form   form
-     :req-ks req-ks}))
+    {:ks       ks
+     :context  context
+     :form     form
+     :req-ks   req-ks}))
 
 (defmethod parse-form 'content
-  [[_ content-type :as form] ks]
+  [[_ content-type :as form] context ks]
   (map->ContentForm
     {:ks           ks
+     :context      context
      :form         form
      :content-type content-type}))
 
+(defrecord RenderForm [ks form content-type]
+  IAstNode
+  (emit- [this {:keys [sources]} result]
+    {:data   (second form)
+     :source (get sources (:path this))}))
+
+(defmethod parse-form 'render
+  [form context ks]
+  (map->RenderForm
+    {:ks ks
+     :context context
+     :form form}))
+
+(defn sub-seq?
+  "Returns true if u is a sub-sequence of v."
+  [u v]
+  (= u (take (count u) v)))
+
 (defn depends-on?
-  [require x]
-  (let [{:keys [req-ks]} require]
-    (= req-ks
-       (take (count req-ks) (:ks x)))))
+  "Returns true if node x depends on node y."
+  [x y]
+  (or (sub-seq? (:req-ks x) (into (:context y) (:ks y)))
+      (sub-seq? (:ks x) (:context y))))
 
 (defmethod valid-edge? '[content require]
   [[content require]]
@@ -87,5 +113,17 @@
 (defmethod valid-edge? '[require require]
   [[require-a require-b]]
   (depends-on? require-b require-a))
+
+(defmethod valid-edge? '[require render]
+  [[require render]]
+  (depends-on? render require))
+
+(defmethod valid-edge? '[render require]
+  [[render require]]
+  (depends-on? require render))
+
+(defmethod valid-edge? '[content render]
+  [[content render]]
+  (depends-on? render content))
 
 (defmethod valid-edge? :default [_] false)
