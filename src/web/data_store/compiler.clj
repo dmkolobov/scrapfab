@@ -7,7 +7,7 @@
             [clojure.java.io :as io]
             [markdown.core :as md]
             [web.data-store.watches :as w]
-            [web.data-store.forms :refer [valid-edge? render-content special-form? emit parse-form]]
+            [web.data-store.forms :refer [valid-edge? node-ks render-content special-form? emit parse-form]]
             [ubergraph.alg :as alg]
             [clojure.walk :as walk]
             [clojure.tools.reader.reader-types :refer [string-push-back-reader read-char]]
@@ -205,27 +205,36 @@
                {}
                file-forms)))
 
-(defn node-contexts
-  [contexts nodes]
-  (let [nested-nodes (set
-                       (->> nodes
-                            (filter #(not= [] (:context %)))
-                            (map :context)))]
-    (reduce (fn [contexts {:keys [ks form context] :as node}]
-              (assoc contexts (into context ks) (vec form)))
-            contexts
-            (filter #(contains? nested-nodes (into (:context %) (:ks %))) nodes))))
+(defn child-context? [{:keys [context]}] (not= [] context))
+
+(defn branches-only
+  [nodes]
+  (let [nodemap (group-by node-ks nodes)]
+    (comp (filter child-context?)
+          (map (fn [node]
+                 (first (get nodemap (:context node)))))
+          (distinct))))
+
+(defn node-state
+  [state nodes]
+  (transduce (branches-only nodes)
+             (completing
+               (fn [state node]
+                 (assoc state (node-ks node) (vec (:form node)))))
+             state
+             nodes))
+
 
 (defn query
   [db q-form]
   (let [{:keys [graph forms] :as state} @db
-        q-nodes (into #{} (analyze-form [:__query] q-form))
-        q-graph (stitch-nodes graph valid-edge? q-nodes)
-        q-forms (assoc forms "/__query" q-form)
-        order (eval-order q-graph q-nodes)
+        q-nodes  (into #{} (analyze-form [:__query] q-form))
+        q-graph  (stitch-nodes graph valid-edge? q-nodes)
+        q-forms  (assoc forms "/__query" q-form)
+        order    (eval-order q-graph q-nodes)
         contexts (-> {}
                      (root-context q-forms)
-                     (node-contexts order))]
+                     (node-state order))]
     ;;(doseq [{:keys [context ks]} order]
     ;;  (println context ks))
     (get-in (evaluate (assoc state :graph q-graph :forms q-forms)

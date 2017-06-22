@@ -1,11 +1,13 @@
 (ns web.data-store.forms
-  (:require [clojure.walk :as walk]))
+  (:require [clojure.walk :as walk]
+            [clojure.string :refer [capitalize]]))
 
 ;; ----- NODES -----------------
 ;; -------------------------------------------
 
 (defprotocol IAstNode
-  (emit- [_ db ctx]))
+  (value [_ db ctx])
+  (depends? [this node]))
 
 (defn load-node
   [contexts node]
@@ -20,7 +22,7 @@
           update-in
           ks
           (fn [result-fragment]
-            (let [val (emit- (load-node contexts node) db contexts)]
+            (let [val (value (load-node contexts node) db contexts)]
               (walk/postwalk-replace {form val} result-fragment)))))
 
 ;; -- parsing --------------------------------------------------------
@@ -45,10 +47,6 @@
 ;; -- edges ----------------------------------------------------------
 ;; -------------------------------------------------------------------
 
-(defmulti special-edge?
-  (juxt (comp first :form first)
-        (comp first :form second)))
-
 (defmulti render-content
   (fn [content-type source data] content-type))
 
@@ -60,46 +58,6 @@
   [node]
   (into (vec (:context node)) (:ks node)))
 
-(defrecord RequireForm [ks context form require-ks]
-  IAstNode
-  (emit- [_ db contexts] (get-in (get contexts []) require-ks)))
-
-(defrecord ContentForm [ks context form]
-  IAstNode
-  (emit- [this {:keys [sources]} contexts]
-    (let [source           (get sources (:path this))
-          [_ content-type] form]
-      (render-content content-type source {}))))
-
-(defmethod parse-form 'require
-  [[_ & require-ks :as form] context ks]
-  (map->RequireForm
-    {:ks         ks
-     :context    context
-     :form       form
-     :require-ks require-ks}))
-
-(defmethod parse-form 'content
-  [[_ content-type :as form] context ks]
-  (map->ContentForm
-    {:ks           ks
-     :context      context
-     :form         form
-     :content-type content-type}))
-
-(defrecord RenderForm [ks form content-type]
-  IAstNode
-  (emit- [this {:keys [sources]} result]
-    {:form   (:form this)
-     :source (get sources (:path this))}))
-
-(defmethod parse-form 'render
-  [form context ks]
-  (map->RenderForm
-    {:ks ks
-     :context context
-     :form form}))
-
 (defn sub-seq?
   "Returns true if u is a sub-sequence of v."
   [u v]
@@ -110,28 +68,58 @@
   [x y]
   (sub-seq? (node-ks x) (node-ks y)))
 
-(defn requires?
-  "Returns true if node x requires node y."
-  [x y]
-  (when-let [rks (seq (:require-ks x))]
-    (sub-seq? rks (node-ks y))))
-
-(defmethod special-edge? '[content require]
-  [[content require]]
-  (requires? require content))
-
-(defmethod special-edge? '[require require]
-  [[require-a require-b]]
-  (requires? require-b require-a))
-
-(defmethod special-edge? '[render require]
-  [[render require]]
-  (requires? require render))
-
-(defmethod special-edge? :default [_] false)
-
 (defn valid-edge?
   [[from to :as edge]]
   (and (not= from to)
        (or (parent? to from)
-           (special-edge? edge))))
+           (depends? to from))))
+
+;; -------- default node implementations
+
+(defn node-name
+  [sym]
+  (symbol (str (capitalize sym) "Node")))
+
+(defn node-constructor
+  [sym]
+  (symbol (str "map->" (node-name sym))))
+
+(defn create-node-record
+  ([sym value]
+   (create-node-record sym value `~'(depends? [_ _] false)))
+  ([sym value depends?]
+   `(do
+      (defrecord ~(node-name sym) [~'context ~'ks ~'form]
+        IAstNode
+        ~value
+        ~depends?)
+
+      (defmethod parse-form '~sym
+        [~'form ~'context ~'ks]
+        (~(node-constructor sym)
+          ~'{:form    form
+             :context context
+             :ks      ks})))))
+
+(defmacro defnode
+  [sym & args]
+  (apply create-node-record sym args))
+
+
+(defnode require
+         (value [_ db state]
+           (get-in (get state []) (rest form)))
+
+         (depends? [this node]
+           (sub-seq? (rest form) (node-ks node))))
+-
+(defnode content
+         (value [this {:keys [sources]} state]
+           (let [source (get sources (:path this))
+                 content-type (last (:form this))]
+             (render-content content-type source {}))))
+
+(defnode render
+         (value [this {:keys [sources]} state]
+           {:form   form
+            :source (get sources (:path this))}))
