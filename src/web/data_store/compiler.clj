@@ -19,7 +19,7 @@
 
 (defn path->ks
   [path]
-  (map keyword (rest (string/split (drop-ext path) #"/"))))
+  (vec (map keyword (rest (string/split (drop-ext path) #"/")))))
 
 (defn relative-path
   [root path]
@@ -36,7 +36,7 @@
                                             [idx]
                                             sub-form)))
                     (completing into)
-                    [[form context ks]]
+                    [[form context (vec ks)]]
                     form)
 
          (map? form)
@@ -207,21 +207,14 @@
 
 (defn node-contexts
   [contexts nodes]
-  (reduce (fn [contexts {:keys [form context] :as node}]
-            (assoc contexts context (vec form)))
-          contexts
-          (filter #(not= [] (:context %)) nodes)))
-
-(defn node-contexts
-  [contexts nodes]
   (let [nested-nodes (set
                        (->> nodes
                             (filter #(not= [] (:context %)))
                             (map :context)))]
     (reduce (fn [contexts {:keys [ks form context] :as node}]
-              (assoc contexts ks (vec form)))
+              (assoc contexts (into context ks) (vec form)))
             contexts
-            (filter #(contains? nested-nodes (:ks %)) nodes))))
+            (filter #(contains? nested-nodes (into (:context %) (:ks %))) nodes))))
 
 (defn query
   [db q-form]

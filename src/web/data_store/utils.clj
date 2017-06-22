@@ -15,7 +15,8 @@
   (uber/add-edges* (uber/add-nodes* graph nodes)
                    (into []
                          (comp mirror-xf (filter valid-edge?))
-                         (cartesian-product (uber/nodes graph) nodes))))
+                         (into (cartesian-product (uber/nodes graph) nodes)
+                               (cartesian-product nodes nodes)))))
 
 (defn restitch-nodes
   "Returns a new graph which excludes any elements of 'old-nodes' which are not

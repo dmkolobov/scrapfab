@@ -9,7 +9,7 @@
 
 (defn load-node
   [contexts node]
-  (if-let [node-value (get contexts (:ks node))]
+  (if-let [node-value (get contexts (into (:context node) (:ks node)))]
     (assoc node :form node-value)
     node))
 
@@ -17,12 +17,11 @@
   [{:keys [ks context form] :as node} db contexts]
   (update contexts
           context
-          (fn [result]
-            (update-in result
-                       ks
-                       (fn [result-fragment]
-                         (let [val (emit- (load-node contexts node) db contexts)]
-                           (walk/postwalk-replace {form val} result-fragment)))))))
+          update-in
+          ks
+          (fn [result-fragment]
+            (let [val (emit- (load-node contexts node) db contexts)]
+              (walk/postwalk-replace {form val} result-fragment)))))
 
 ;; -- parsing --------------------------------------------------------
 ;; -------------------------------------------------------------------
@@ -85,7 +84,7 @@
 (defrecord RenderForm [ks form content-type]
   IAstNode
   (emit- [this {:keys [sources]} result]
-    {:data   (second form)
+    {:form   (:form this)
      :source (get sources (:path this))}))
 
 (defmethod parse-form 'render
@@ -103,8 +102,11 @@
 (defn depends-on?
   "Returns true if node x depends on node y."
   [x y]
-  (or (sub-seq? (:req-ks x) (into (:context y) (:ks y)))
-      (sub-seq? (:ks x) (:context y))))
+  (and (not= x y)
+       (or (and (contains? x :req-ks)
+                (sub-seq? (:req-ks x) (into (:context y) (:ks y))))
+           (sub-seq? (into (:context x) (:ks x))
+                     (into (:context y) (:ks y))))))
 
 (defmethod valid-edge? '[content require]
   [[content require]]
@@ -121,6 +123,10 @@
 (defmethod valid-edge? '[render require]
   [[render require]]
   (depends-on? require render))
+
+(defmethod valid-edge? '[render render]
+  [[render-a render-b]]
+  (depends-on? render-b render-a))
 
 (defmethod valid-edge? '[content render]
   [[content render]]

@@ -1,3 +1,4 @@
-(render (require :photos :see_saw))
+(render (require :photos :fire_pit)
+        {:foo (render (require :photos))})
 
 hello, world
