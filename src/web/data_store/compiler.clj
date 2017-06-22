@@ -226,6 +226,8 @@
         contexts (-> {}
                      (root-context q-forms)
                      (node-contexts order))]
+    ;;(doseq [{:keys [context ks]} order]
+    ;;  (println context ks))
     (get-in (evaluate (assoc state :graph q-graph :forms q-forms)
                       contexts
                       order)

@@ -45,7 +45,7 @@
 ;; -- edges ----------------------------------------------------------
 ;; -------------------------------------------------------------------
 
-(defmulti valid-edge?
+(defmulti special-edge?
   (juxt (comp first :form first)
         (comp first :form second)))
 
@@ -58,11 +58,11 @@
 (defn node-ks
   "Returns the full key sequence pointing to the node."
   [node]
-  (into (:context node) (:ks node)))
+  (into (vec (:context node)) (:ks node)))
 
-(defrecord RequireForm [ks context form req-ks]
+(defrecord RequireForm [ks context form require-ks]
   IAstNode
-  (emit- [_ db contexts] (get-in (get contexts []) req-ks)))
+  (emit- [_ db contexts] (get-in (get contexts []) require-ks)))
 
 (defrecord ContentForm [ks context form]
   IAstNode
@@ -72,12 +72,12 @@
       (render-content content-type source {}))))
 
 (defmethod parse-form 'require
-  [[_ & req-ks :as form] context ks]
+  [[_ & require-ks :as form] context ks]
   (map->RequireForm
-    {:ks       ks
-     :context  context
-     :form     form
-     :req-ks   req-ks}))
+    {:ks         ks
+     :context    context
+     :form       form
+     :require-ks require-ks}))
 
 (defmethod parse-form 'content
   [[_ content-type :as form] context ks]
@@ -105,36 +105,33 @@
   [u v]
   (= u (take (count u) v)))
 
-(defn depends-on?
-  "Returns true if node x depends on node y."
+(defn parent?
+  "Returns true if node x is a parent of node y."
   [x y]
-  (and (not= x y)
-       (or (and (contains? x :req-ks)
-                (sub-seq? (:req-ks x) (node-ks y)))
-           (sub-seq? (node-ks x) (node-ks y)))))
+  (sub-seq? (node-ks x) (node-ks y)))
 
-(defmethod valid-edge? '[content require]
+(defn requires?
+  "Returns true if node x requires node y."
+  [x y]
+  (when-let [rks (seq (:require-ks x))]
+    (sub-seq? rks (node-ks y))))
+
+(defmethod special-edge? '[content require]
   [[content require]]
-  (depends-on? require content))
+  (requires? require content))
 
-(defmethod valid-edge? '[require require]
+(defmethod special-edge? '[require require]
   [[require-a require-b]]
-  (depends-on? require-b require-a))
+  (requires? require-b require-a))
 
-(defmethod valid-edge? '[require render]
-  [[require render]]
-  (depends-on? render require))
-
-(defmethod valid-edge? '[render require]
+(defmethod special-edge? '[render require]
   [[render require]]
-  (depends-on? require render))
+  (requires? require render))
 
-(defmethod valid-edge? '[render render]
-  [[render-a render-b]]
-  (depends-on? render-b render-a))
+(defmethod special-edge? :default [_] false)
 
-(defmethod valid-edge? '[content render]
-  [[content render]]
-  (depends-on? render content))
-
-(defmethod valid-edge? :default [_] false)
+(defn valid-edge?
+  [[from to :as edge]]
+  (and (not= from to)
+       (or (parent? to from)
+           (special-edge? edge))))
