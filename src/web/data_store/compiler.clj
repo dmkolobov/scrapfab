@@ -35,7 +35,7 @@
                                             (into context ks)
                                             [idx]
                                             sub-form)))
-                    (completing into)
+                      (completing into)
                     [[form context (vec ks)]]
                     form)
 
@@ -170,74 +170,7 @@
         events (watch-files! config)]
     (async/go-loop []
       (let [[event & args] (async/<! events)]
-        (swap! db
-               (fn [dbv]
-                 (apply (get event-fns event) dbv args)))
+        (swap! db (fn [dbv] (apply (get event-fns event) dbv args)))
         (recur)))
     db))
 
-;; ---- EXECUTION ----------------------------------------------------
-
-(defn evaluate
-  [db contexts order]
-  (reduce (fn [contexts node]
-            (emit node db contexts))
-          contexts
-          order))
-
-(defn reachable
-  [graph nodes]
-  (let [graph' (uber/transpose graph)]
-    (reduce (fn [node-set node]
-              (into node-set (alg/post-traverse graph' node)))
-            #{}
-            nodes)))
-
-(defn eval-order
-  [graph nodes]
-  (keep (reachable graph nodes) (alg/topsort graph)))
-
-(defn root-context
-  [contexts file-forms]
-  (assoc contexts
-    [] (reduce (fn [result [path form]]
-                 (assoc-in result (path->ks path) form))
-               {}
-               file-forms)))
-
-(defn child-context? [{:keys [context]}] (not= [] context))
-
-(defn branches-only
-  [nodes]
-  (let [nodemap (group-by node-ks nodes)]
-    (comp (filter child-context?)
-          (map (fn [node]
-                 (first (get nodemap (:context node)))))
-          (distinct))))
-
-(defn node-state
-  [state nodes]
-  (transduce (branches-only nodes)
-             (completing
-               (fn [state node]
-                 (assoc state (node-ks node) (vec (:form node)))))
-             state
-             nodes))
-
-
-(defn query
-  [db q-form]
-  (let [{:keys [graph forms] :as state} @db
-        q-nodes  (into #{} (analyze-form [:__query] q-form))
-        q-graph  (stitch-nodes graph valid-edge? q-nodes)
-        q-forms  (assoc forms "/__query" q-form)
-        order    (eval-order q-graph q-nodes)
-        contexts (-> {}
-                     (root-context q-forms)
-                     (node-state order))]
-    ;;(doseq [{:keys [context ks]} order]
-    ;;  (println context ks))
-    (get-in (evaluate (assoc state :graph q-graph :forms q-forms)
-                      contexts
-                      order)
-            [[] :__query])))

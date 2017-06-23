@@ -1,7 +1,8 @@
 (ns web.data-store.utils
   (:require [clojure.math.combinatorics :refer [cartesian-product]]
             [ubergraph.core :as uber]
-            [clojure.set :as set]))
+            [clojure.set :as set]
+            [ubergraph.alg :as alg]))
 
 (def mirror-xf (mapcat (juxt identity reverse)))
 
@@ -26,6 +27,14 @@
       (uber/remove-nodes* (set/difference old-nodes new-nodes))
       (stitch-nodes valid-edge? (set/difference new-nodes old-nodes))))
 
+(defn transitive-deps
+  "Returns a set of the transitive dependencies of every element of 'nodes'."
+  [graph nodes]
+  (let [graph' (uber/transpose graph)]
+    (reduce (fn [node-set node]
+              (into node-set (alg/post-traverse graph' node)))
+            #{}
+            nodes)))
 ;; ------------------- collection functions -------------------
 
 (defn collect-forms
@@ -37,4 +46,3 @@
                     seq
                     form)))
 
-;; -----------
