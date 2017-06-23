@@ -7,7 +7,7 @@
             [clojure.java.io :as io]
             [markdown.core :as md]
             [web.data-store.watches :as w]
-            [web.data-store.forms :refer [valid-edge? node-ks render-content special-form? emit parse-form]]
+            [web.data-store.forms :refer [valid-edge? analyze-form node-ks render-content special-form? emit parse-form]]
             [ubergraph.alg :as alg]
             [clojure.walk :as walk]
             [clojure.tools.reader.reader-types :refer [string-push-back-reader read-char]]
@@ -25,35 +25,6 @@
   [root path]
   (string/replace path (re-pattern root) ""))
 
-;; ------------------- analysis ----------------------
-
-(defn ks-walk
-  [pred context ks form]
-   (cond (pred form)
-         (transduce (map-indexed (fn [idx sub-form]
-                                   (ks-walk pred
-                                            (into context ks)
-                                            [idx]
-                                            sub-form)))
-                      (completing into)
-                    [[form context (vec ks)]]
-                    form)
-
-         (map? form)
-         (transduce (map (fn [[key sub-form]]
-                           (ks-walk pred context (conj (vec ks) key) sub-form)))
-                    (completing into)
-                    []
-                    form)
-
-         :default
-         (eduction (map #(vector % context ks)) (collect-forms pred form))))
-
-(defn analyze-form
-  [ks form]
-  (eduction (map (partial apply parse-form))
-            (ks-walk special-form? [] ks form)))
-
 (defn with-edn-header
   [source]
   (let [reader (string-push-back-reader source)
@@ -68,25 +39,21 @@
   and find any special forms. The EDN structure will reside at the key
   sequence defined by the application of 'path->ks' to 'path', relative
   to 'root'."
-  [root path]
-  (let [rel-path       (relative-path root path)
-        root-ks        (path->ks rel-path)
-        [form content] (with-edn-header (slurp path))]
-    {:path     path
-     :rel-path rel-path
+  [root-ks source]
+  (let [[form content] (with-edn-header source)]
+    {:root-ks  root-ks
      :form     form
      :content  content
-     :nodes    (into #{}
-                     (map (fn [ast] (merge ast {:path path})))
-                     (analyze-form root-ks form))}))
+     :nodes    (into #{} (analyze-form root-ks form))}))
 
 (defn analyze-xf
   "Returns a transformer replaces [event path] tuples with [event ast] ."
-  [root-path]
+  [root]
   (map (fn [[event path]]
-         (if (= event :delete)
-           [event path]
-           [event (analyze-file root-path path)]))))
+         (let [ks (path->ks (relative-path root path))]
+           (if (= event :delete)
+             [event ks]
+             [event (analyze-file ks (slurp path))])))))
 
 ;; ---- COMPILATION ----
 ;; -------------------------------------------------------------------
@@ -97,29 +64,29 @@
 ;; by '(require :some :ks :to :data)' forms in the EDN forms.
 
 (defn add-file
-  [db {:keys [path rel-path form nodes content]}]
+  [db {:keys [root-ks form nodes content]}]
   (-> db
-      (update :forms assoc rel-path form)
-      (update :nodes assoc path nodes)
-      (update :sources assoc path content)
+      (update :forms assoc root-ks form)
+      (update :nodes assoc root-ks nodes)
+      (update :sources assoc root-ks content)
       (update :graph stitch-nodes valid-edge? nodes)))
 
 (defn mod-file
-  [db {:keys [path rel-path form nodes content]}]
-  (let [old-nodes (get-in db [:nodes path])]
+  [db {:keys [root-ks form nodes content]}]
+  (let [old-nodes (get-in db [:nodes root-ks])]
     (-> db
-        (update :forms assoc rel-path form)
-        (update :nodes assoc path nodes)
-        (update :sources assoc path content)
+        (update :forms assoc root-ks form)
+        (update :nodes assoc root-ks nodes)
+        (update :sources assoc root-ks content)
         (update :graph restitch-nodes valid-edge? old-nodes nodes))))
 
 (defn rm-file
-  [{:keys [nodes] :as db} path]
+  [{:keys [nodes] :as db} root-ks]
   (-> db
-      (update :graph uber/remove-nodes* (get nodes path))
-      (update :forms dissoc path)
-      (update :nodes dissoc path)
-      (update :sources dissoc path)))
+      (update :graph uber/remove-nodes* (get nodes root-ks))
+      (update :forms dissoc root-ks)
+      (update :nodes dissoc root-ks)
+      (update :sources dissoc root-ks)))
 
 (def event-fns
   {:create add-file

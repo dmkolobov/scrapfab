@@ -2,7 +2,7 @@
   (:require [ubergraph.alg :as alg]
             [ubergraph.core :as uber]
 
-            [web.data-store.compiler :refer [path->ks analyze-form]]
+            [web.data-store.compiler :refer [analyze-form]]
             [web.data-store.forms :refer [node-ks emit valid-edge?]]
             [web.data-store.utils :refer [stitch-nodes transitive-deps]]))
 
@@ -13,11 +13,8 @@
           order))
 
 (defn root-context
-  [file-forms]
-  (reduce (fn [result [path form]]
-            (assoc-in result (path->ks path) form))
-          {}
-          file-forms))
+  [root-forms]
+  (reduce (partial apply assoc-in) {} root-forms))
 
 (defn in-child-context? [{:keys [context]}] (not= [] context))
 
@@ -35,10 +32,10 @@
       (assoc state (node-ks node) (vec (:form node))))))
 
 (defn query-state
-  [file-forms nodes]
+  [root-forms nodes]
   (transduce (branches-only nodes)
              query-state-reducer
-             {[] (root-context file-forms)}
+             {[] (root-context root-forms)}
              nodes))
 
 (defn eval-order
@@ -50,7 +47,7 @@
   (let [{:keys [graph forms] :as state} @db
         q-nodes  (into #{} (analyze-form [:__query] q-form))
         q-graph  (stitch-nodes graph valid-edge? q-nodes)
-        q-forms  (assoc forms "/__query" q-form)
+        q-forms  (assoc forms [:__query] q-form)
         order    (eval-order q-graph q-nodes)]
     (get-in (evaluate (assoc state :graph q-graph :forms q-forms)
                       (query-state q-forms order)

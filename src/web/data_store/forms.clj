@@ -1,6 +1,7 @@
 (ns web.data-store.forms
   (:require [clojure.walk :as walk]
-            [clojure.string :refer [capitalize]]))
+            [clojure.string :refer [capitalize]]
+            [web.data-store.utils :refer [collect-forms]]))
 
 ;; ----- NODES -----------------
 ;; -------------------------------------------
@@ -23,17 +24,18 @@
    (create-node-record sym value `~'(depends? [_ _] false)))
   ([sym value depends?]
    `(do
-      (defrecord ~(node-name sym) [~'context ~'ks ~'form]
+      (defrecord ~(node-name sym) [~'root-ks ~'context ~'ks ~'form]
         IAstNode
         ~value
         ~depends?)
 
       (defmethod parse-form '~sym
-        [~'form ~'context ~'ks]
+        [~'root-ks ~'form ~'context ~'ks]
         (~(node-constructor sym)
           ~'{:form    form
              :context context
-             :ks      ks})))))
+             :ks      ks
+             :root-ks root-ks})))))
 
 (defmacro defnode
   [sym & args]
@@ -65,7 +67,7 @@
 
 (defmulti parse-form
   "Given a form and a path to the node, return the node encoded by the form."
-  (fn [x context ks] (first x)))
+  (fn [root-ks x context ks] (first x)))
 
 (defn special-forms
   "Returns the set of all dispatch values of 'parse-form'."
@@ -104,6 +106,36 @@
        (or (parent? to from)
            (depends? to from))))
 
+;; -- analysis -------------------------------------------------------
+;; -------------------------------------------------------------------
+
+(defn ks-walk
+  [pred context ks form]
+  (cond (pred form)
+        (transduce (map-indexed (fn [idx sub-form]
+                                  (ks-walk pred
+                                           (into context ks)
+                                           [idx]
+                                           sub-form)))
+                   (completing into)
+                   [[form context (vec ks)]]
+                   form)
+
+        (map? form)
+        (transduce (map (fn [[key sub-form]]
+                          (ks-walk pred context (conj (vec ks) key) sub-form)))
+                   (completing into)
+                   []
+                   form)
+
+        :default
+        (eduction (map #(vector % context ks)) (collect-forms pred form))))
+
+(defn analyze-form
+  [root-ks form]
+  (eduction (map (partial apply parse-form root-ks))
+            (ks-walk special-form? [] root-ks form)))
+
 ;; -------- default node implementations
 
 (defnode require
@@ -115,11 +147,11 @@
 
 (defnode content
          (value [this {:keys [sources]} state]
-           (let [source (get sources (:path this))
+           (let [source (get sources root-ks)
                  content-type (last form)]
              (render-content content-type source {}))))
 
 (defnode render
          (value [this {:keys [sources]} state]
            {:form   form
-            :source (get sources (:path this))}))
+            :source (get sources root-ks)}))
