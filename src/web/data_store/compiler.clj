@@ -34,27 +34,6 @@
         (recur (read-char reader) (conj parts c))
         [meta (string/join parts)]))))
 
-(defn analyze-file
-  "Given a root directory and a path to a file, read it's EDN header
-  and find any special forms. The EDN structure will reside at the key
-  sequence defined by the application of 'path->ks' to 'path', relative
-  to 'root'."
-  [root-ks source]
-  (let [[form content] (with-edn-header source)]
-    {:root-ks  root-ks
-     :form     form
-     :content  content
-     :nodes    (into #{} (analyze-form root-ks form))}))
-
-(defn analyze-xf
-  "Returns a transformer replaces [event path] tuples with [event ast] ."
-  [root]
-  (map (fn [[event path]]
-         (let [ks (path->ks (relative-path root path))]
-           (if (= event :delete)
-             [event ks]
-             [event (analyze-file ks (slurp path))])))))
-
 ;; ---- COMPILATION ----
 ;; -------------------------------------------------------------------
 ;;
@@ -64,16 +43,20 @@
 ;; by '(require :some :ks :to :data)' forms in the EDN forms.
 
 (defn add-file
-  [db {:keys [root-ks form nodes content]}]
-  (-> db
-      (update :forms assoc root-ks form)
-      (update :nodes assoc root-ks nodes)
-      (update :sources assoc root-ks content)
-      (update :graph stitch-nodes valid-edge? nodes)))
+  [db root-ks source]
+  (let [[form content] (with-edn-header source)
+        nodes          (into #{} (analyze-form root-ks form))]
+    (-> db
+        (update :forms assoc root-ks form)
+        (update :nodes assoc root-ks nodes)
+        (update :sources assoc root-ks content)
+        (update :graph stitch-nodes valid-edge? nodes))))
 
 (defn mod-file
-  [db {:keys [root-ks form nodes content]}]
-  (let [old-nodes (get-in db [:nodes root-ks])]
+  [db root-ks source]
+  (let [[form content] (with-edn-header source)
+        nodes          (into #{} (analyze-form root-ks form))
+        old-nodes      (get-in db [:nodes root-ks])]
     (-> db
         (update :forms assoc root-ks form)
         (update :nodes assoc root-ks nodes)
@@ -102,15 +85,20 @@
 
 ;; ------------------- file watching ----------------------
 
-(defn file?
-  [path]
-  (let [f (io/as-file path)]
-    (not (.isDirectory f))))
+(defn file? [path] (not (.isDirectory (io/as-file path))))
 
-(defn analysis-chan
+(defn file-event-xf
+  [root]
+  (map (fn [[event path]]
+         (let [ks (path->ks (relative-path root path))]
+           (if (= event :delete)
+             [event ks]
+             [event ks (slurp path)])))))
+
+(defn file-event-chan
   [path]
   (async/chan 1 (comp (filter (comp file? second))
-                      (analyze-xf path))))
+                      (file-event-xf path))))
 
 (defn watch-files!
   [{:keys [source-paths]}]
@@ -118,7 +106,7 @@
         mix         (async/mix events-chan)]
     (w/start-watch
       (map (fn [src-path]
-             (let [ana-chan (analysis-chan src-path)
+             (let [ana-chan (file-event-chan src-path)
                    watch    (w/watch-spec ana-chan src-path)]
                (async/admix mix ana-chan)
                watch))
@@ -126,10 +114,7 @@
     events-chan))
 
 (def clean-state
-  {:graph    (uber/digraph)
-   :forms    {}
-   :nodes    {}
-   :contents {}})
+  {:graph (uber/digraph) :forms {} :nodes {} :contents {}})
 
 (defn run-compiler!
   [config]
