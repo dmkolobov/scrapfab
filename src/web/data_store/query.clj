@@ -2,8 +2,7 @@
   (:require [ubergraph.alg :as alg]
             [ubergraph.core :as uber]
 
-            [web.data-store.compiler :refer [analyze-form]]
-            [web.data-store.forms :refer [node-ks emit valid-edge?]]
+            [web.data-store.forms :refer [node-ks emit analyze-form valid-edge?]]
             [web.data-store.utils :refer [stitch-nodes transitive-deps]]))
 
 (defn evaluate
